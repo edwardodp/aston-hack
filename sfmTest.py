@@ -4,13 +4,39 @@ import numpy as np
 import time
 import math
 
-dt = 0.1
+dt = 0.05
 
 st.title("Social Force Model Preview")
 
 # 1. Setup Simulation Parameters
-num_agents = st.sidebar.slider("Number of Agents", 2, 100, 9) # Default to 9 for a nice 3x3 grid
+col1, col2 = st.columns(2)
+num_agents = col1.slider("Number of Agents", 2, 100, 30)
+# --- NEW: Rowdiness Slider ---
+rowdiness = col2.slider("Rowdiness Level (%)", 0, 100, 0)
 iterations = 1000
+
+# --- MAPPING ROWDINESS TO PHYSICS ---
+# Linear interpolation helper
+def map_val(val, in_min, in_max, out_min, out_max):
+    return out_min + (val - in_min) * (out_max - out_min) / (in_max - in_min)
+
+# Calculate physics constants based on rowdiness
+# 1. Speed: 0% -> 0.8 m/s (Walk), 100% -> 3.0 m/s (Run)
+p_desired_speed = map_val(rowdiness, 0, 100, 0.8, 4.0)
+
+# 2. Tau (Reaction time): 0% -> 0.8s (Lazy), 100% -> 0.1s (Instant/Aggressive)
+p_tau = map_val(rowdiness, 0, 100, 0.8, 0.1)
+
+# 3. Personal Space: 0% -> 1.0m (Polite), 100% -> 0.2m (Pushy)
+p_radius = map_val(rowdiness, 0, 100, 1.0, 0.2)
+
+# 4. Social Repulsion Strength: 0% -> 20 (Gentle), 100% -> 50 (Shoving)
+# Paradoxically, rowdy crowds push harder, even if they allow closer contact.
+p_social_strength = map_val(rowdiness, 0, 100, 20.0, 50.0)
+
+# 5. Noise/Panic: 0% -> 0, 100% -> High random force
+p_noise = map_val(rowdiness, 0, 100, 0.0, 5.0)
+# ------------------------------------
 
 # --- SETUP: GEOMETRY (WALLS) ---
 # Format: [x1, y1, x2, y2]
@@ -55,7 +81,7 @@ velocities = np.zeros((num_agents, 2))
 goals = np.array([5.0, 9.0])
 # -------------------------------------
 
-def get_driving_force(pos, vel, goal, desired_speed=0.8, tau=0.5):
+def get_driving_force(pos, vel, goal, desired_speed, tau):
     """
     Calculates the force pulling agents toward the goal.
     
@@ -91,7 +117,7 @@ def get_driving_force(pos, vel, goal, desired_speed=0.8, tau=0.5):
     
     return force
 
-def get_social_force(pos, interaction_radius=0.1, repulsion_strength=20.0):
+def get_social_force(pos, interaction_radius, repulsion_strength):
     """
     Calculates the repulsive force between all pairs of agents.
     
@@ -205,17 +231,21 @@ for i in range(iterations):
     
     # A. Calculate Driving Force
     # Let's say everyone wants to go to the center [5, 5]
-    F_goal = get_driving_force(positions, velocities, goals)
+    F_goal = get_driving_force(positions, velocities, goals, desired_speed=p_desired_speed, tau=p_tau)
     
     # B. Calculate Social Force (Repulsion)
     # Play with 'repulsion_strength' to make them more/less polite!
-    F_social = get_social_force(positions, interaction_radius=0.5, repulsion_strength=20.0)
+    F_social = get_social_force(positions, interaction_radius=p_radius, repulsion_strength=p_social_strength)
 
     # 3. Obstacle Force (Agent-Wall) -- NEW!
     F_wall = get_wall_force(positions, walls, repulsion_strength=100.0) # Strong walls!
 
+    # 4. NEW: Noise/Panic Force (Random Jitter)
+    # This simulates people shoving or behaving irrationally in a panic
+    F_noise = np.random.uniform(-1, 1, size=(num_agents, 2)) * p_noise
+    
     # C. Resultant Force (Vector Sum)
-    F_total = F_goal + F_social + F_wall
+    F_total = F_goal + F_social + F_wall + F_noise
 
     # B. Apply Physics (Euler Integration)
     # Acceleration = Force / Mass (assume mass = 1)
@@ -224,9 +254,9 @@ for i in range(iterations):
     # Update Velocity
     velocities += acceleration * dt
     
-    # Speed Limit (Optional but recommended for stability)
+    # Dynamic Speed Limit (Rowdy people run faster!)
+    max_speed = p_desired_speed * 1.5 # Allow slightly faster than desired if pushed
     speed = np.linalg.norm(velocities, axis=1)
-    max_speed = 2.0
     mask = speed > max_speed
     velocities[mask] = (velocities[mask] / speed[mask, np.newaxis]) * max_speed
     
@@ -243,10 +273,13 @@ for i in range(iterations):
     
     # --- NEW: DRAW WALLS ---
     for wall in walls:
-        # wall = [x1, y1, x2, y2]
-        # Plot takes [x1, x2], [y1, y2]
         ax.plot([wall[0], wall[2]], [wall[1], wall[3]], color='black', linewidth=3)
     # -----------------------
+    
+    # Draw Agents (Color changes with rowdiness!)
+    # Blue = Calm, Red = Rowdy
+    agent_color = plt.cm.coolwarm(rowdiness / 100.0)
+    ax.scatter(positions[:, 0], positions[:, 1], s=80, color=agent_color, alpha=0.8, edgecolors='black')
     
     # Render the agents
     ax.scatter(positions[:, 0], positions[:, 1], s=100, color='dodgerblue', alpha=0.8, edgecolors='black')
