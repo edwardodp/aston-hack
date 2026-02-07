@@ -5,12 +5,14 @@ GRID_ROWS = 32
 GRID_COLS = 32
 
 # --- RENDERING (The Display Contract) ---
-CANVAS_SIZE_PX = 640
+CANVAS_SIZE_PX = 1024
 PIXELS_PER_CELL = int(CANVAS_SIZE_PX / GRID_COLS) # 20px
 
 # --- ENTITY IDs ---
 ID_NOTHING = 0
 ID_WALL = 1
+ID_POI = 2
+ID_BARRIER = 3
 
 # --- COLORS (BGR format for OpenCV) ---
 COLOR_BG           = (255, 255, 255) # White
