@@ -21,3 +21,6 @@ COLOR_GRID_LINE    = (200, 200, 200) # Light Gray
 COLOR_AGENT_SAFE   = (0, 255, 0)     # Green
 COLOR_AGENT_WARN   = (0, 165, 255)   # Orange
 COLOR_AGENT_DANGER = (0, 0, 255)     # Red
+
+# --- MISC ---
+DT = 0.05
