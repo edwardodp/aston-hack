@@ -23,4 +23,4 @@ COLOR_AGENT_WARN   = (0, 165, 255)   # Orange
 COLOR_AGENT_DANGER = (0, 0, 255)     # Red
 
 # --- MISC ---
-DT = 0.05
+DT = 0.016

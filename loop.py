@@ -2,6 +2,7 @@ import streamlit as st
 import time
 import physics      # The Model
 import render       # The View
+import constants as c
 
 def run_simulation(canvas_placeholder, num_agents, rowdiness, structure_grid):
     """
@@ -46,4 +47,4 @@ def run_simulation(canvas_placeholder, num_agents, rowdiness, structure_grid):
         canvas_placeholder.image(frame, channels="RGB")
         
         # F. YIELD (Cap at ~60 FPS)
-        time.sleep(0.016)
+        time.sleep(c.DT)
