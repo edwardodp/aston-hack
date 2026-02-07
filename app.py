@@ -1,6 +1,6 @@
 import streamlit as st
-import render
-import loop
+import src.render as render
+import src.loop as loop
 
 # --- SETUP PAGE ---
 st.set_page_config(page_title="CrowdFlow", layout="wide")
