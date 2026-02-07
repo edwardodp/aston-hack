@@ -1,5 +1,5 @@
 import numpy as np
-import constants as c
+from . import constants as c
 
 # --- 1. CONFIGURATION HELPERS ---
 

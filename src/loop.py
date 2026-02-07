@@ -1,8 +1,8 @@
 import streamlit as st
 import time
-import physics      # The Model
-import render       # The View
-import constants as c
+from . import physics      # The Model
+from . import render       # The View
+from . import constants as c
 
 def run_simulation(canvas_placeholder, num_agents, rowdiness, structure_grid):
     """

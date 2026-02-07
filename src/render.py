@@ -1,7 +1,7 @@
 import streamlit as st
 import numpy as np
 import cv2
-import constants as c
+from . import constants as c
 
 # --- 1. UI GETTERS ---
 
