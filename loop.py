@@ -14,7 +14,7 @@ def run_simulation(canvas_placeholder, num_agents, rowdiness, structure_grid):
     # We use session_state to ensure we don't re-init logic 
     # if the script reruns just because a slider moved.
     if "physics_initialized" not in st.session_state:
-        physics.start(num_agents, structure_grid)
+        physics.init_simulation(num_agents, structure_grid)
         st.session_state.physics_initialized = True
     
     # --- 2. THE LOOP ---
