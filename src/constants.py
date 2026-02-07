@@ -21,6 +21,8 @@ COLOR_GRID_LINE    = (200, 200, 200) # Light Gray
 COLOR_AGENT_SAFE   = (0, 255, 0)     # Green
 COLOR_AGENT_WARN   = (0, 165, 255)   # Orange
 COLOR_AGENT_DANGER = (0, 0, 255)     # Red
+COLOR_POI      = (100, 0, 100)       # Dark Purple
+COLOR_BARRIER  = (0, 215, 255)       # Dark Yellow/Gold (B=0, G=215, R=255)
 
 # --- PHYSICS ENGINE CONFIG ---
 DT = 0.016         # Time step (seconds)

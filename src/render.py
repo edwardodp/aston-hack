@@ -33,9 +33,14 @@ def get_structure_grid():
     grid[:, 0] = c.ID_WALL
     grid[:, -1] = c.ID_WALL
     
+    grid[1:4, 11:21] = c.ID_POI
+    grid[26:29, 29:31] = c.ID_POI
+
+    grid[7, 12: 20] = c.ID_BARRIER
+    
     # Funnel
     mid = c.GRID_COLS // 2
-    for r in range(10, 20):
+    for r in range(11, 21):
         grid[r, 0 : (mid - (r-8))] = c.ID_WALL
         grid[r, (mid + (r-8)) : c.GRID_COLS] = c.ID_WALL
         
@@ -77,15 +82,20 @@ def render_structure(img, row, col, structure_id):
     x2 = x1 + c.PIXELS_PER_CELL
     y2 = y1 + c.PIXELS_PER_CELL
 
-    # Determine Color/Shape based on ID
-    color = c.COLOR_WALL # Default
+    # Determine Color based on ID
+    color = c.COLOR_WALL # Default fallback
     
     if structure_id == c.ID_WALL:
         color = c.COLOR_WALL
-        # Future: If ID_EXIT, color = Green, etc.
+    elif structure_id == c.ID_POI:
+        color = c.COLOR_POI      # Dark Purple
+    elif structure_id == c.ID_BARRIER:
+        color = c.COLOR_BARRIER  # Dark Yellow
 
     # Draw Logic
     cv2.rectangle(img, (x1, y1), (x2, y2), color, -1)
+    
+    # Optional: Draw grid lines for definition
     cv2.rectangle(img, (x1, y1), (x2, y2), c.COLOR_GRID_LINE, 1)
 
 

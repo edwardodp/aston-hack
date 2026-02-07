@@ -166,28 +166,37 @@ def init_state(num_agents, grid_map):
     cell_w = c.LOGICAL_WIDTH / c.GRID_COLS
     cell_h = c.LOGICAL_HEIGHT / c.GRID_ROWS
     
+    # 1. Find all potential target points (POI Cells)
     poi_locations = []
     for r in range(c.GRID_ROWS):
         for col in range(c.GRID_COLS):
             if grid_map[r, col] == c.ID_POI:
+                # Target is the center of the POI cell
                 cx = (col * cell_w) + (cell_w / 2)
                 cy = (r * cell_h) + (cell_h / 2)
                 poi_locations.append([cx, cy])
     
+    # 2. Assign Goals
     if poi_locations:
-        # The goal is still the center of the stage
-        # Agents will drive towards it but collide with the 'wall' of the stage
-        goals = np.mean(poi_locations, axis=0)
+        # Convert to numpy array for fast indexing
+        poi_array = np.array(poi_locations)
+        
+        # Randomly assign each agent to one of the POI locations
+        # This creates sub-crowds heading to different destinations
+        random_indices = np.random.randint(0, len(poi_locations), size=num_agents)
+        goals = poi_array[random_indices] # Shape: (num_agents, 2)
     else:
-        goals = np.array([c.LOGICAL_WIDTH / 2.0, c.LOGICAL_HEIGHT / 2.0])
+        # Fallback: Everyone goes to the center
+        center = np.array([c.LOGICAL_WIDTH / 2.0, c.LOGICAL_HEIGHT / 2.0])
+        # Broadcast center to shape (num_agents, 2)
+        goals = np.full((num_agents, 2), center)
 
+    # 3. Spawn Agents (Standard Logic)
     valid_positions = []
     attempts = 0
     max_attempts = num_agents * 50
     
-    # --- CHANGE 2: Spawning ---
-    # Agents can spawn in Empty space (0).
-    # Agents CANNOT spawn in POI (2) anymore, because it's a solid stage.
+    # Agents spawn in Empty space (0).
     walkable_mask = (grid_map == c.ID_NOTHING)
 
     while len(valid_positions) < num_agents and attempts < max_attempts:
@@ -209,8 +218,12 @@ def init_state(num_agents, grid_map):
     pressures = np.zeros(num_agents, dtype=np.float64)
 
     return {
-        'pos': pos, 'vel': vel, 'diameters': diameters,
-        'goals': goals, 'pressures': pressures, 'grid': grid_map
+        'pos': pos, 
+        'vel': vel, 
+        'diameters': diameters,
+        'goals': goals,
+        'pressures': pressures, 
+        'grid': grid_map
     }
 
 def tick(state, rowdiness_val, grid_map):
@@ -257,9 +270,36 @@ def tick(state, rowdiness_val, grid_map):
     pos[:, 1] = np.clip(pos[:, 1], 0, c.LOGICAL_HEIGHT - 0.1)
 
     # 5. Pressure Calculation
+    # We only count forces from OTHER AGENTS (Social + Contact).
     crush_forces = F_social + F_contact
     crush_mag = np.linalg.norm(crush_forces, axis=1)
-    state['pressures'] = np.clip(crush_mag * 0.25, 0, 255)
+
+    # Detect if agents are near a BARRIER (Safety Rail).
+    c_idx = (pos[:, 0] / cell_w).astype(int)
+    r_idx = (pos[:, 1] / cell_h).astype(int)
+    
+    c_idx = np.clip(c_idx, 0, c.GRID_COLS-1)
+    r_idx = np.clip(r_idx, 0, c.GRID_ROWS-1)
+    
+    near_barrier_mask = np.zeros(num_agents, dtype=bool)
+    
+    # Simple 3x3 check for nearby barriers
+    for dy in [-1, 0, 1]:
+        for dx in [-1, 0, 1]:
+            ny = np.clip(r_idx + dy, 0, c.GRID_ROWS-1)
+            nx = np.clip(c_idx + dx, 0, c.GRID_COLS-1)
+            near_barrier_mask |= (grid_map[ny, nx] == c.ID_BARRIER)
+
+    # 6. Apply Relief & Sensitivity
+    relief_factor = np.ones(num_agents)
+    # Agents near barriers feel 80% less pressure (Safety Rail effect)
+    relief_factor[near_barrier_mask] = 0.2 
+    
+    # FIX 1: Apply the relief_factor
+    # FIX 2: Lower sensitivity from 0.25 to 0.10 (Requires 2500N to hit max red)
+    final_pressure = crush_mag * 0.10 * relief_factor
+    
+    state['pressures'] = np.clip(final_pressure, 0, 255)
 
     state['pos'] = pos
     state['vel'] = vel
