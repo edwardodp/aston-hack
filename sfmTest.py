@@ -266,8 +266,6 @@ for i in range(iterations):
 
     # --- SIMULATION LOGIC END ---
 
-
-
     # 4. Rendering the frame
     fig, ax = plt.subplots(figsize=(5, 5))
     
