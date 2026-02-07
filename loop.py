@@ -11,33 +11,37 @@ def run_simulation(canvas_placeholder, num_agents, rowdiness, structure_grid):
     """
     
     # --- 1. INITIALIZATION CHECK ---
-    # We use session_state to ensure we don't re-init logic 
-    # if the script reruns just because a slider moved.
-    if "physics_initialized" not in st.session_state:
-        physics.init_simulation(num_agents, structure_grid)
+    # We use session_state to persist the simulation state (positions, velocities)
+    # even if Streamlit reruns the script (e.g., when you move a slider).
+    if "physics_state" not in st.session_state:
+        # Create the initial state dictionary
+        initial_state = physics.init_state(num_agents, structure_grid)
+        st.session_state.physics_state = initial_state
         st.session_state.physics_initialized = True
+    
+    # Retrieve the state object to use in the loop
+    state = st.session_state.physics_state
     
     # --- 2. THE LOOP ---
     while True:
         # A. Check Stop Condition
         # If the user clicked "Stop" in app.py, the session state changes.
-        # However, inside a blocking loop, we rely on the script being killed/rerun 
-        # by Streamlit interactions. 
-        # For safety, we can check the state if app.py set it.
         if not st.session_state.get("sim_running", False):
             break
 
         # B. SUB-TICKING (Physics runs faster than Rendering)
-        # 5 Physics Ticks per 1 Render Frame
+        # We run multiple small physics steps for every 1 frame drawn to screen.
         for _ in range(c.SUB_TICKS):
-            physics.tick(rowdiness)
+            # Pass the current state, get the updated state back
+            # Note: We also pass structure_grid because physics.tick needs it for wall forces
+            state = physics.tick(state, rowdiness, structure_grid)
             
         # C. GET DATA (Pull from Model)
-        # SoA (Structure of Arrays) style
-        pos_array = physics.get_agents_pos()
-        pres_array = physics.get_agents_pressure()
-        size_array = physics.get_agents_size()
-        wall_grid = physics.get_walls()
+        # The getters now require the 'state' dictionary to know what to read
+        pos_array  = physics.get_agents_pos(state)
+        pres_array = physics.get_agents_pressure(state)
+        size_array = physics.get_agents_size(state)
+        wall_grid  = physics.get_walls(state)
         
         # D. RENDER (Push to View)
         # We pass the raw arrays directly to the renderer
@@ -48,3 +52,6 @@ def run_simulation(canvas_placeholder, num_agents, rowdiness, structure_grid):
         
         # F. YIELD (Cap at ~60 FPS)
         time.sleep(c.DT)
+
+    # Optional: Save the final state back to session (if you want to pause/resume later)
+    st.session_state.physics_state = state
