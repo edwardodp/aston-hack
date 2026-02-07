@@ -5,7 +5,7 @@ GRID_ROWS = 32
 GRID_COLS = 32
 
 # --- RENDERING (The Display Contract) ---
-CANVAS_SIZE_PX = 1024
+CANVAS_SIZE_PX = 612
 PIXELS_PER_CELL = int(CANVAS_SIZE_PX / GRID_COLS) # 20px
 
 # --- ENTITY IDs ---
@@ -22,5 +22,6 @@ COLOR_AGENT_SAFE   = (0, 255, 0)     # Green
 COLOR_AGENT_WARN   = (0, 165, 255)   # Orange
 COLOR_AGENT_DANGER = (0, 0, 255)     # Red
 
-# --- MISC ---
-DT = 0.016
+# --- PHYSICS ---
+DT = 0.05
+SUB_TICKS = 2

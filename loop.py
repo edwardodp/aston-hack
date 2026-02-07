@@ -29,7 +29,7 @@ def run_simulation(canvas_placeholder, num_agents, rowdiness, structure_grid):
 
         # B. SUB-TICKING (Physics runs faster than Rendering)
         # 5 Physics Ticks per 1 Render Frame
-        for _ in range(1):
+        for _ in range(c.SUB_TICKS):
             physics.tick(rowdiness)
             
         # C. GET DATA (Pull from Model)
