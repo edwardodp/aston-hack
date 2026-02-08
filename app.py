@@ -81,8 +81,8 @@ if st.session_state.page == "setup":
 
         with col1:
             st.markdown("### System Status")
-            st.metric(label="Physics Engine", value="Verlet", delta="Active")
-            st.metric(label="Optimization Engine", value="Monte Carlo", delta="Ready")
+            st.metric(label="Physics Engine", value="Verlet", delta="60 FPS")
+            st.metric(label="Optimisation Engine", value="Monte Carlo", delta="Working")
             st.markdown("---")
             st.markdown("**Capabilities:**")
             st.markdown("- *Collision Prediction*")
@@ -90,7 +90,6 @@ if st.session_state.page == "setup":
             st.markdown("- *Automated Barrier Placement*")
             st.markdown("- *Real time pressure graph*")
             st.markdown("- *Audio Integration with Model*")
-            st.caption("Build v1.0.0 | State: Ready")
         
         with col2:
             with st.container(border=True):
