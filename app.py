@@ -100,8 +100,8 @@ if st.session_state.page == "setup":
         # --- LEFT COLUMN: METRICS ---
         with col1:
             st.markdown("### System Status")
-            st.metric(label="Physics Engine", value="Verlet", delta="Active")
-            st.metric(label="Optimization Engine", value="Monte Carlo", delta="Ready")
+            st.metric(label="Physics Engine", value="Verlet")
+            st.metric(label="Optimisation Engine", value="Monte Carlo")
             st.markdown("---")
             st.markdown("**Capabilities:**")
             st.markdown("- *Collision Prediction*")
@@ -252,8 +252,8 @@ if st.session_state.page == "setup":
                     # Only show analyze button if we haven't analyzed this specific file yet
                     # (or just simple check if music_data is missing)
                     if "music_data" not in st.session_state.sim_params:
-                        if st.button("Analyze Audio"):
-                            with st.spinner("Analyzing RMS Energy, Onset Strength and Tempo..."):
+                        if st.button("Analyse Audio"):
+                            with st.spinner("Analysing RMS Energy, Onset Strength and Tempo..."):
                                 with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(music_upload.name)[1]) as tmp:
                                     tmp.write(music_upload.getvalue())
                                     tmp_path = tmp.name
