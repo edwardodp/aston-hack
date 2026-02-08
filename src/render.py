@@ -1,30 +1,61 @@
 import streamlit as st
 import numpy as np
 import cv2
+import os
 from . import constants as c
 
 # --- 1. UI GETTERS ---
 
-def render_sidebar():
+def render_sidebar_controls(stop_callback, initial_rowdiness=0.0):
     """
-    Draws the sidebar controls and returns the initial setup values.
-    Returns: (num_agents, rowdiness)
+    Draws the sidebar controls for the LIVE simulation phase.
+    Returns: rowdiness
     """
-    st.sidebar.header("CrowdFlow Controls")
+    st.sidebar.markdown(
+        "<h1 style='text-align: center;'>Live Controls</h1>", 
+        unsafe_allow_html=True
+    )
     
-    # Setup Phase
-    num_agents = st.sidebar.slider("Number of Agents", 100, 2000, 500)
+    # Live Physics Tweaks
+    rowdiness = st.sidebar.slider("Rowdiness (Panic)", 0.0, 1.0, float(initial_rowdiness))
     
-    # Live Phase
-    rowdiness = st.sidebar.slider("Rowdiness (Panic)", 0.0, 1.0, 0.0)
+    st.sidebar.markdown("---")
     
-    return num_agents, rowdiness
+    sb_col1, sb_col2, sb_col3 = st.sidebar.columns([1, 2, 1])
+    
+    with sb_col2:
+        # use_container_width=True makes the button fill the entire middle column
+        st.button(
+            "Reset Simulation", 
+            on_click=stop_callback, 
+            type="secondary", 
+            use_container_width=True
+        )
+    
+    # Legend / Info
+    st.sidebar.info(
+        """
+        **Legend:**
+        - 🟢 Green: Calm
+        - 🟠 Orange: Uncomfortable
+        - 🔴 Red: High Pressure
+        """
+    )
+    
+    return rowdiness
 
-def get_structure_grid():
+def get_structure_grid(csv_path=None):
     """
     Returns the 32x32 Integer Grid (0=Empty, 1=Wall).
     Hardcoded 'Funnel' map for testing.
     """
+    """
+    Returns the 32x32 Integer Grid.
+    If csv_path is provided, loads from file. Otherwise, uses hardcoded default.
+    """
+    if csv_path and os.path.exists(csv_path):
+        return load_grid_from_csv(csv_path)
+
     grid = np.zeros((c.GRID_ROWS, c.GRID_COLS), dtype=int)
     
     # Borders
@@ -45,6 +76,62 @@ def get_structure_grid():
         grid[r, (mid + (r-8)) : c.GRID_COLS] = c.ID_WALL
         
     return grid
+
+def load_grid_from_csv(file_path):
+    """
+    Parses a .csv file into a numpy structure grid.
+    
+    Expected CSV Format:
+    - Rows: 32 (c.GRID_ROWS)
+    - Cols: 32 (c.GRID_COLS)
+    - Values: Integers matching ID constants (0, 1, 2, 3)
+    - Delimiter: Comma
+    """
+    try:
+        # Load the CSV directly into a numpy integer array
+        # delimiter="," specifies a standard CSV
+        grid = np.loadtxt(file_path, delimiter=",", dtype=int)
+        
+        # Validate Dimensions
+        expected_shape = (c.GRID_ROWS, c.GRID_COLS)
+        if grid.shape != expected_shape:
+            raise ValueError(f"Invalid Grid Size: Found {grid.shape}, expected {expected_shape}")
+            
+        return grid
+        
+    except Exception as e:
+        # Fallback to a safe empty grid if loading fails
+        print(f"Error loading map {file_path}: {e}")
+        return np.zeros((c.GRID_ROWS, c.GRID_COLS), dtype=int)
+
+def get_preview_image(grid):
+    """
+    Generates a static thumbnail image of the grid (Walls/POIs)
+    for the UI preview.
+    """
+    # 1. Create a blank image (scaled up x10 for visibility)
+    scale = 10
+    h, w = grid.shape
+    img = np.full((h * scale, w * scale, 3), c.COLOR_BG, dtype=np.uint8)
+
+    # 2. Draw static elements
+    for r in range(h):
+        for col in range(w):
+            val = grid[r, col]
+            
+            color = c.COLOR_BG
+            if val == c.ID_WALL: color = c.COLOR_WALL
+            elif val == c.ID_POI: color = c.COLOR_POI
+            elif val == c.ID_BARRIER: color = c.COLOR_BARRIER
+            
+            # Draw if not empty
+            if val != c.ID_NOTHING:
+                x1, y1 = col * scale, r * scale
+                x2, y2 = (col + 1) * scale, (r + 1) * scale
+                cv2.rectangle(img, (x1, y1), (x2, y2), color, -1)
+
+    # 3. Convert BGR to RGB for Streamlit
+    return cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 
 # --- 2. RENDER HELPERS ---
 
