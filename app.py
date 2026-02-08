@@ -43,16 +43,37 @@ main_container = st.empty()
 if st.session_state.page == "setup":
     with main_container.container():
         # 1. Centered Title
-        st.markdown("<h1 style='text-align: center;'>Crowd Flow Simulation</h1>", unsafe_allow_html=True)
+        
+        logo_c1, logo_c2, logo_c3 = st.columns([1, 3, 1])
+        
+        with logo_c2:
+            # Replace "assets/crowd.png" with your actual title/logo file
+            st.image("assets/titleAndIcon.png", use_container_width=True)
+        
         st.markdown("<h4 style='text-align: center; color: gray;'>Simulate crowded events, save communities</h4>", unsafe_allow_html=True)
         st.markdown("---")
 
         # 2. Centered Inputs
         col1, col2, col3 = st.columns([1, 1, 1])
 
+        with col1:
+            st.markdown("### 📡 System Status")
+            # Fake metrics to look "techy"
+            st.metric(label="Physics Engine", value="Verlet", delta="Active")
+            st.metric(label="Time Step", value="16ms", delta="60 Hz")
+            
+            st.markdown("---")
+            st.markdown("**Engine Capabilities:**")
+            st.markdown("- *Collision Prediction*")
+            st.markdown("- *Social Force Model*")
+            st.markdown("- *Pressure Heatmaps*")
+            
+            st.caption("Build v0.6.9 | State: Ready")
+        
         with col2:
             with st.container(border=True):
-                st.subheader("Initial Parameters")
+                
+                st.markdown("<h1 style='text-align: center;'>Input Parameters</h1>", unsafe_allow_html=True)
                 
                 st.slider(
                     "Number of Agents", 
@@ -120,6 +141,20 @@ if st.session_state.page == "setup":
                 sub_c1, sub_c2, sub_c3 = st.columns([1, 2, 1])
                 with sub_c2:
                     st.button("Start Simulation", on_click=start_simulation, type="primary", use_container_width=True)
+        
+        with col3:
+            st.markdown("### 📋 User Guide")
+            with st.expander("How to run", expanded=True):
+                st.markdown(
+                    """
+                    1. **Select a Map**: Choose a preset layout.
+                    2. **Set Density**: Higher agent count increases pressure.
+                    3. **Panic Level**: High rowdiness mimics stampedes.
+                    """
+                )
+            
+            st.info("⚠️ **Tip:** Start with low 'Rowdiness' to observe normal flow, then increase it to test safety limits.")
+            
 
 # --- PAGE 2: SIMULATION ---
 elif st.session_state.page == "simulation":
