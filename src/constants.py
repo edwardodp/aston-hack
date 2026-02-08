@@ -1,12 +1,12 @@
-# --- LOGICAL WORLD (The Physics Contract) ---
+# --- LOGICAL WORLD ---
 LOGICAL_WIDTH = 1024.0
 LOGICAL_HEIGHT = 1024.0
 GRID_ROWS = 32
 GRID_COLS = 32
 
-# --- RENDERING (The Display Contract) ---
+# --- RENDERING ---
 CANVAS_SIZE_PX = 640
-PIXELS_PER_CELL = int(CANVAS_SIZE_PX / GRID_COLS) # 20px
+PIXELS_PER_CELL = int(CANVAS_SIZE_PX / GRID_COLS)
 
 # --- ENTITY IDs ---
 ID_NOTHING = 0
@@ -25,24 +25,24 @@ COLOR_POI      = (100, 0, 100)       # Dark Purple
 COLOR_BARRIER  = (0, 215, 255)       # Dark Yellow/Gold (B=0, G=215, R=255)
 
 # --- MONTE CARLO SEARCH ---
-SUB_STRATEGY_CHANCE = 1  # 50% chance to apply a sub-strategy
+SUB_STRATEGY_CHANCE = 0.5
 
 # --- PHYSICS ENGINE CONFIG ---
-DT = 0.016         # Time step (seconds)
-SUB_TICKS = 1      # How many physics steps per 1 render frame
+DT = 0.016
+SUB_TICKS = 1
 
 # --- CORE PHYSICS CONSTANTS ---
-BASE_MASS = 3.0              # kg (Mass of an average agent)
-REF_DIAMETER = 23.0          # px (Reference size for mass scaling)
+BASE_MASS = 3.0
+REF_DIAMETER = 23.0
 
 # Forces
-WALL_STIFFNESS = 5000.0      # k (Stronger spring to prevent wall clipping)
-AGENT_CONTACT_STIFFNESS = 1000.0 # k (Spring force between agents to stop overlap)
+WALL_STIFFNESS = 5000.0
+AGENT_CONTACT_STIFFNESS = 1000.0
 
-WALL_REPULSION_DIST = 5.0    # meters (Soft warning zone)
+WALL_REPULSION_DIST = 5.0
 WALL_REPULSION_STRENGTH = 1000.0
 
-# --- PERSONALITY PROFILES (Rowdiness Map) ---
+# --- PERSONALITY PROFILES ---
 # 1. Desired Speed
 SPEED_CALM = 80.0
 SPEED_PANIC = 180.0
@@ -52,9 +52,8 @@ TAU_CALM = 0.8
 TAU_PANIC = 0.2
 
 # 3. Personal Space (Psychological Radius)
-# Note: This is separate from Physical Radius (Diameter/2)
 RADIUS_CALM = 100.0
-RADIUS_PANIC = 50.0    # Was 30.0
+RADIUS_PANIC = 50.0
 
 # 4. Social Repulsion (Psychological Strength)
 SOCIAL_PUSH_CALM = 50.0
