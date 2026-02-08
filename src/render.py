@@ -65,15 +65,15 @@ def get_structure_grid(csv_path=None):
     grid[:, -1] = c.ID_WALL
     
     grid[1:4, 11:21] = c.ID_POI
-    grid[26:29, 29:31] = c.ID_POI
+    # grid[26:29, 29:31] = c.ID_POI
 
     grid[7, 12: 20] = c.ID_BARRIER
     
     # Funnel
-    mid = c.GRID_COLS // 2
-    for r in range(11, 21):
-        grid[r, 0 : (mid - (r-8))] = c.ID_WALL
-        grid[r, (mid + (r-8)) : c.GRID_COLS] = c.ID_WALL
+    # mid = c.GRID_COLS // 2
+    # for r in range(11, 21):
+    #     grid[r, 0 : (mid - (r-8))] = c.ID_WALL
+    #     grid[r, (mid + (r-8)) : c.GRID_COLS] = c.ID_WALL
         
     return grid
 
