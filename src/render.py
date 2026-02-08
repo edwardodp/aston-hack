@@ -2,6 +2,8 @@ import streamlit as st
 import numpy as np
 import cv2
 import os
+import pandas as pd
+import altair as alt  # <--- NEW IMPORT
 from . import constants as c
 
 # --- 1. UI GETTERS ---
@@ -9,7 +11,6 @@ from . import constants as c
 def render_sidebar_controls(stop_callback, initial_rowdiness=0.0, initial_switch_chance=0.001):
     """
     Draws the sidebar controls for the LIVE simulation phase.
-    Returns: (rowdiness, switch_chance)
     """
     st.sidebar.markdown(
         "<h1 style='text-align: center;'>Live Controls</h1>", 
@@ -19,8 +20,6 @@ def render_sidebar_controls(stop_callback, initial_rowdiness=0.0, initial_switch
     # Live Physics Tweaks
     rowdiness = st.sidebar.slider("Rowdiness", 0.0, 1.0, float(initial_rowdiness), help="Simulate a more pushy and agitated crowd with a higher rowdiness.")
 
-    # NEW: Goal Switching Slider
-    # Uses initial_switch_chance from Setup as the default value
     switch_chance = st.sidebar.slider(
         "Wandering", 
         min_value=0.0, 
@@ -31,6 +30,10 @@ def render_sidebar_controls(stop_callback, initial_rowdiness=0.0, initial_switch
         help="Probability per tick that an agent changes their destination."
     )
     
+    st.sidebar.markdown("---")
+    
+    st.sidebar.markdown("### Safety Monitor") 
+    chart_placeholder = st.sidebar.empty()
     st.sidebar.markdown("---")
     
     sb_col1, sb_col2, sb_col3 = st.sidebar.columns([1, 2, 1])
@@ -52,7 +55,36 @@ def render_sidebar_controls(stop_callback, initial_rowdiness=0.0, initial_switch
         """
     )
     
-    return rowdiness, switch_chance
+    return rowdiness, switch_chance, chart_placeholder
+
+def render_chart(placeholder, pressure_history):
+    """
+    Updates the sidebar chart using Altair for fixed axes and labels.
+    """
+    if not pressure_history:
+        return
+
+    # Create a DataFrame with an explicit index for the X-axis
+    df = pd.DataFrame({
+        "Time": range(len(pressure_history)),
+        "Pressure": pressure_history
+    })
+    
+    # Create Altair Chart
+    chart = alt.Chart(df).mark_line(color="#00e5ff").encode(
+        # X-Axis Label
+        x=alt.X('Time', axis=alt.Axis(title='Time (Frames)')),
+        
+        # Y-Axis Fixed Range (0-255) & Label
+        y=alt.Y('Pressure', 
+                scale=alt.Scale(domain=[0, 255]), 
+                axis=alt.Axis(title='Avg Pressure'))
+    ).properties(
+        height=150
+    )
+    
+    # Render with Streamlit
+    placeholder.altair_chart(chart, use_container_width=True)
 
 def get_structure_grid(csv_path=None):
     """

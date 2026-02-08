@@ -18,7 +18,8 @@ def evaluate_layout(grid_layout, num_agents, steps=1000):
     
     for _ in range(steps):
         state = physics.tick(state, 1.0, grid_layout)
-        total_pressure += np.mean(state['pressures'])
+        # USE THE SINGLE SOURCE OF TRUTH for the metric
+        total_pressure += physics.get_average_pressure(state)
         
     return total_pressure / steps
 

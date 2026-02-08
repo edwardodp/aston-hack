@@ -328,3 +328,11 @@ def get_agents_pos(state): return state['pos']
 def get_agents_pressure(state): return state['pressures']
 def get_agents_size(state): return state['diameters']
 def get_walls(state): return state['grid']
+
+def get_average_pressure(state):
+    """
+    Returns the average pressure of all agents.
+    """
+    if len(state['pressures']) == 0:
+        return 0.0
+    return np.mean(state['pressures'])

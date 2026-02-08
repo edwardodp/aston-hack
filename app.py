@@ -153,8 +153,6 @@ if st.session_state.page == "setup":
                         key="setup_map_select"
                     )
 
-                    # --- FIX: DETERMINE CURRENT GRID *BEFORE* USING IT IN BUTTONS ---
-                    
                     # 1. If Optimized: Use the stored result
                     if st.session_state.is_optimized:
                         current_grid = st.session_state.sim_params.get("structure_grid")
@@ -167,17 +165,19 @@ if st.session_state.page == "setup":
                         else:
                             current_grid = render.get_structure_grid(None)
                     
-                    # --- END FIX ---
 
                     c1, c2 = st.columns([1, 2])
                     
                     with c2:
                         # C. Map Preview Image
+                        preview_image = None 
                         if current_grid is not None:
-                            if st.session_state.is_optimized:
-                                st.success("✅ Map Optimized by AI")
-                            preview_img = render.get_preview_image(current_grid)
-                            rendererd_image = st.image(preview_img, caption="Venue Preview", use_container_width=True)
+                            preview_image = render.get_preview_image(current_grid)
+                        
+                        if preview_image is not None:
+                            st.image(preview_image, caption="Venue Preview", use_container_width=True)
+                        else:
+                            st.info("No preview available for this map.")
                     
                     with c1:
                         st.caption("Map Legend:")
@@ -195,24 +195,24 @@ if st.session_state.page == "setup":
                         st.write("")
                         # Only show Optimize button if not already optimized
                         if not st.session_state.is_optimized:
-                            if st.button("✨ Auto-Optimise", help="Run AI to find best barrier placement"):
+                            if st.button("Auto-Optimise", help="Run AI to find best barrier placement"):
                                 status_text = st.empty()
-                                viz_placeholder = rendererd_image
                                 
-                                # Run Optimizer (Now current_grid is defined!)
+                                viz_placeholder = st.empty()
+                                
+                                # Run Optimizer
                                 best_grid = optimiser.run_optimisation(
-                                    status_text,
-                                    viz_placeholder,
-                                    st.session_state["setup_agents_slider"],
+                                    status_placeholder=status_text,
+                                    canvas_placeholder=viz_placeholder, # Pass the empty UI container
+                                    num_agents=st.session_state["setup_agents_slider"],
                                     max_iter=50,
                                     patience=10,
                                     default_grid=current_grid
                                 )
                                 
-                                # Store Result & Set Flag
                                 st.session_state.sim_params["structure_grid"] = best_grid
                                 st.session_state.is_optimized = True
-                                st.rerun() 
+                                st.rerun()
                                 
                         # Show Reset button if optimized
                         if st.session_state.is_optimized:
@@ -262,7 +262,7 @@ elif st.session_state.page == "simulation":
             st.rerun()
     else:
         # 3. Sidebar Controls
-        rowdiness, switch_chance = render.render_sidebar_controls(
+        rowdiness, switch_chance, chart_placeholder = render.render_sidebar_controls(
             stop_callback=stop_simulation, 
             initial_rowdiness=init_rowdiness,
             initial_switch_chance=init_switch
@@ -276,4 +276,11 @@ elif st.session_state.page == "simulation":
             canvas_placeholder = st.empty()
         
         # 5. Run the Loop
-        loop.run_simulation(canvas_placeholder, init_agents, rowdiness, structure_grid, switch_chance)
+        loop.run_simulation(
+            canvas_placeholder, 
+            init_agents, 
+            rowdiness, 
+            structure_grid, 
+            switch_chance,
+            chart_placeholder
+        )
