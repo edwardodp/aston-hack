@@ -8,7 +8,7 @@ from . import strategies
 
 # --- 1. EVALUATION ENGINE ---
 
-def evaluate_layout(grid_layout, num_agents, rowdiness=1.0, steps=3000):
+def evaluate_layout(grid_layout, num_agents, rowdiness=1.0, steps=350):
     """
     Runs a headless simulation to score a layout.
     """
