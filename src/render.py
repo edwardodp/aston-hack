@@ -17,12 +17,12 @@ def render_sidebar_controls(stop_callback, initial_rowdiness=0.0, initial_switch
     )
     
     # Live Physics Tweaks
-    rowdiness = st.sidebar.slider("Rowdiness (Panic)", 0.0, 1.0, float(initial_rowdiness))
+    rowdiness = st.sidebar.slider("Rowdiness", 0.0, 1.0, float(initial_rowdiness), help="Simulate a more pushy and agitated crowd with a higher rowdiness.")
 
     # NEW: Goal Switching Slider
     # Uses initial_switch_chance from Setup as the default value
     switch_chance = st.sidebar.slider(
-        "Wandering (Goal Switch)", 
+        "Wandering", 
         min_value=0.0, 
         max_value=0.005, 
         value=float(initial_switch_chance), 
