@@ -176,14 +176,14 @@ def init_state(num_agents, grid_map):
                 cy = (r * cell_h) + (cell_h / 2)
                 poi_locations.append([cx, cy])
     
+    # Pre-calculate POI array for storage and assignment
+    poi_array = np.array(poi_locations) if poi_locations else np.empty((0, 2))
+    
     # 2. Assign Goals
-    if poi_locations:
-        # Convert to numpy array for fast indexing
-        poi_array = np.array(poi_locations)
-        
+    if len(poi_array) > 0:
         # Randomly assign each agent to one of the POI locations
         # This creates sub-crowds heading to different destinations
-        random_indices = np.random.randint(0, len(poi_locations), size=num_agents)
+        random_indices = np.random.randint(0, len(poi_array), size=num_agents)
         goals = poi_array[random_indices] # Shape: (num_agents, 2)
     else:
         # Fallback: Everyone goes to the center
@@ -223,10 +223,11 @@ def init_state(num_agents, grid_map):
         'diameters': diameters,
         'goals': goals,
         'pressures': pressures, 
-        'grid': grid_map
+        'grid': grid_map,
+        'poi_locations': poi_array # Store for runtime swapping
     }
 
-def tick(state, rowdiness_val, grid_map):
+def tick(state, rowdiness_val, grid_map, poi_switch_chance=0.01):
     pos = state['pos']
     vel = state['vel']
     diameters = state['diameters']
@@ -234,6 +235,22 @@ def tick(state, rowdiness_val, grid_map):
     
     num_agents = len(pos)
     if num_agents == 0: return state
+    
+    poi_locs = state.get('poi_locations')
+    
+    # Only switch if we have POIs and the chance is non-zero
+    if poi_switch_chance > 0 and poi_locs is not None and len(poi_locs) > 0:
+        # Generate a boolean mask for agents that should switch this tick
+        switch_mask = np.random.rand(num_agents) < poi_switch_chance
+        num_switching = np.sum(switch_mask)
+        
+        if num_switching > 0:
+            # Pick new random goals for the switching agents
+            random_indices = np.random.randint(0, len(poi_locs), size=num_switching)
+            new_goals = poi_locs[random_indices]
+            
+            # Update the goals in the state array
+            goals[switch_mask] = new_goals
 
     # 1. Map Parameters
     params = get_personality_params(rowdiness_val * 100)

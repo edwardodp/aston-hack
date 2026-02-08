@@ -1,14 +1,11 @@
 import streamlit as st
 from PIL import Image
-import os
-
-# Internal Modules
 from src import render
 from src import loop
-from src import optimiser
+from src import optimiser  # Imported the optimization engine
+import os
 
 # --- SETUP PAGE CONFIG ---
-# Use a try-except for the image in case the file is missing during dev
 try:
     favicon_image = Image.open("assets/crowd.png")
     st.set_page_config(page_title="Crowd Flow", page_icon=favicon_image, layout="wide")
@@ -31,154 +28,176 @@ if "is_optimized" not in st.session_state:
 
 # --- CALLBACKS ---
 def start_simulation():
-    """Transition to Simulation Page"""
-    # 1. Capture Slider Values
+    # 1. Save Slider Values 
     st.session_state.sim_params["num_agents"] = st.session_state["setup_agents_slider"]
     st.session_state.sim_params["rowdiness_level"] = st.session_state["setup_rowdiness_slider"]
+    st.session_state.sim_params["switch_chance"] = st.session_state["setup_switch_slider"]
     
-    # 2. Ensure a Grid exists (Default if none selected)
-    if "structure_grid" not in st.session_state.sim_params:
-        st.session_state.sim_params["structure_grid"] = render.get_structure_grid()
+    # 2. Map Selection Logic
+    # If the map is NOT optimized, we load it from the file selector.
+    # If it IS optimized, the grid is already stored in sim_params["structure_grid"], so we skip loading.
+    if not st.session_state.is_optimized:
+        maps_dir = "assets/preset_maps"
+        selected_file = st.session_state.get("setup_map_select")
+        
+        if selected_file and os.path.exists(os.path.join(maps_dir, selected_file)):
+            path = os.path.join(maps_dir, selected_file)
+            grid = render.get_structure_grid(path)
+        else:
+            grid = render.get_structure_grid(None)
+            
+        st.session_state.sim_params["structure_grid"] = grid
 
     # 3. Switch Page
-    st.session_state.sim_running = True
     st.session_state.page = "simulation"
+    st.session_state.sim_running = True
+    # No explicit rerun needed here as button click triggers update
 
 def stop_simulation():
-    """Return to Setup Page"""
     st.session_state.sim_running = False
     st.session_state.page = "setup"
     
-    # Clear physics state to force a complete reset
+    # Clear physics state to force a complete reset of positions
     if "physics_state" in st.session_state:
         del st.session_state.physics_state
-    if "physics_initialized" in st.session_state:
-        del st.session_state.physics_initialized
+    
+    # NOTE: We do NOT delete "structure_grid" if it is optimized, 
+    # so the user preserves their AI layout when returning to setup.
+    if not st.session_state.is_optimized and "structure_grid" in st.session_state.sim_params:
+        del st.session_state.sim_params["structure_grid"]
 
 def reset_optimization_cb():
     """Clear the optimized map and revert to original"""
     st.session_state.is_optimized = False
-    # The actual map reload happens in the UI logic below based on selection
+    # Remove the stored grid so the preview falls back to the CSV selection
+    if "structure_grid" in st.session_state.sim_params:
+        del st.session_state.sim_params["structure_grid"]
+
+# --- MAIN CONTAINER ---
+main_interface = st.empty()
 
 # --- PAGE 1: SETUP ---
 if st.session_state.page == "setup":
     
-    # Layout Containers
-    header = st.container()
-    controls = st.container()
-
-    with header:
+    with main_interface.container():
+        
         # 1. Title Area
         logo_c1, logo_c2, logo_c3 = st.columns([1, 3, 1])
         with logo_c2:
             try:
                 st.image("assets/titleAndIcon.png", use_container_width=True)
             except:
-                st.title("CrowdFlow Simulation")
+                st.title("Crowd Flow")
         
         st.markdown("<h4 style='text-align: center; color: gray;'>Simulate crowded events, save communities</h4>", unsafe_allow_html=True)
         st.markdown("---")
 
-    with controls:
+        # 2. Controls Area
         col1, col2, col3 = st.columns([1, 1, 1])
 
         # --- LEFT COLUMN: METRICS ---
         with col1:
             st.markdown("### 📡 System Status")
-            st.metric(label="Physics Engine", value="Verlet Integration", delta="Active")
+            st.metric(label="Physics Engine", value="Verlet", delta="Active")
             st.metric(label="Optimization Engine", value="Monte Carlo", delta="Ready")
-            
             st.markdown("---")
             st.markdown("**Capabilities:**")
             st.markdown("- *Collision Prediction*")
             st.markdown("- *Social Force Model*")
             st.markdown("- *Automated Barrier Placement*")
-            st.caption("Build v1.0 [Merged]")
-
-        # --- MIDDLE COLUMN: INPUTS & OPTIMIZER ---
+            st.caption("Build v1.0.0 | State: Ready")
+        
+        # --- MIDDLE COLUMN: INPUTS (Fragmented) ---
         with col2:
             with st.container(border=True):
-                st.markdown("<h3 style='text-align: center;'>Configuration</h3>", unsafe_allow_html=True)
                 
-                # A. Sliders
-                st.slider("Number of Agents", 100, 2000, 500, key="setup_agents_slider")
-                st.slider("Crowd Rowdiness (Panic)", 0.0, 1.0, 0.0, key="setup_rowdiness_slider")
-                
-                st.write("---")
-                
-                # B. Map Selection
-                st.subheader("Venue Selection")
-                maps_dir = "assets/preset_maps"
-                
-                # Load available maps
-                available_maps = []
-                if os.path.exists(maps_dir):
-                    available_maps = [f for f in os.listdir(maps_dir) if f.endswith(".csv")]
-                
-                selected_file = st.selectbox("Choose Layout:", ["Default Arena"] + available_maps)
-                
-                # Logic to load the map
-                current_grid = None
-                if selected_file == "Default Arena":
-                    # Only reload if we aren't holding an optimized map
-                    if not st.session_state.is_optimized:
-                        current_grid = render.get_structure_grid(None)
-                        st.session_state.sim_params["structure_grid"] = current_grid
-                    else:
-                        current_grid = st.session_state.sim_params.get("structure_grid")
-                else:
-                    # CSV Loading
-                    if not st.session_state.is_optimized:
-                        path = os.path.join(maps_dir, selected_file)
-                        current_grid = render.get_structure_grid(path)
-                        st.session_state.sim_params["structure_grid"] = current_grid
-                    else:
-                        current_grid = st.session_state.sim_params.get("structure_grid")
+                # ISOLATED FRAGMENT: Interactions here won't reload the whole page
+                @st.fragment
+                def render_setup_interface():
+                    st.markdown("<h3 style='text-align: center;'>Configuration</h3>", unsafe_allow_html=True)
+                    
+                    # A. Sliders
+                    st.slider("Number of Agents", 100, 2000, 500, key="setup_agents_slider")
+                    st.write("") 
+                    st.slider("Crowd Rowdiness (Panic)", 0.0, 1.0, 0.0, key="setup_rowdiness_slider")
+                    st.write("")
+                    st.slider("Wandering (Goal Switch)", 0.0, 0.005, 0.001, step=0.0001, format="%.4f", key="setup_switch_slider")
+                    st.write("")
+                    
+                    # B. Map Selection
+                    st.subheader("Venue Selection")
+                    
+                    maps_dir = "assets/preset_maps"
+                    available_maps = []
+                    if os.path.exists(maps_dir):
+                        available_maps = [f for f in os.listdir(maps_dir) if f.endswith(".csv")]
+                    
+                    # Store selection in session state key
+                    selected_file = st.selectbox(
+                        "Choose Layout:", 
+                        available_maps if available_maps else ["Default"],
+                        key="setup_map_select"
+                    )
 
-                # C. Map Preview
-                if current_grid is not None:
-                    # Show badge if optimized
+                    # Determine Current Grid for Preview
+                    # 1. If Optimized: Use the stored result
                     if st.session_state.is_optimized:
+                        current_grid = st.session_state.sim_params.get("structure_grid")
                         st.success("✅ Map Optimized by AI")
                     
-                    preview_img = render.get_preview_image(current_grid)
-                    st.image(preview_img, caption="Venue Preview", use_container_width=True)
+                    # 2. If Not Optimized: Load from File
+                    else:
+                        if available_maps and selected_file in available_maps:
+                            path = os.path.join(maps_dir, selected_file)
+                            current_grid = render.get_structure_grid(path)
+                        else:
+                            current_grid = render.get_structure_grid(None)
 
-                # D. OPTIMIZATION BUTTON (The Merged Feature)
-                st.write("")
-                opt_col1, opt_col2 = st.columns([1, 1])
-                
-                with opt_col1:
-                    if st.button("✨ Auto-Optimise", help="Run AI to find best barrier placement"):
-                        progress_bar = st.progress(0)
-                        status_text = st.empty()
-                        viz_placeholder = st.empty() # Placeholder for the Monte Carlo view
-                        
-                        # Use the CURRENT map as the baseline
-                        base_map = current_grid if current_grid is not None else render.get_structure_grid()
-                        
-                        # Run the Optimizer
-                        best_grid = optimiser.run_optimisation(
-                            status_text,
-                            viz_placeholder, # Pass placeholder for live drawing
-                            st.session_state["setup_agents_slider"],
-                            max_iter=100, 
-                            patience=20,
-                            default_grid=base_map
-                        )
-                        
-                        # Save Result
-                        st.session_state.sim_params["structure_grid"] = best_grid
-                        st.session_state.is_optimized = True
-                        st.rerun() # Rerun to update the preview image
-                
-                with opt_col2:
-                    if st.session_state.is_optimized:
-                        st.button("Reset Map", on_click=reset_optimization_cb)
+                    # C. Map Preview Image
+                    if current_grid is not None:
+                        preview_img = render.get_preview_image(current_grid)
+                        st.image(preview_img, caption="Venue Preview", use_container_width=True)
+
+                    # D. Optimization Controls
+                    st.write("")
+                    opt_col1, opt_col2 = st.columns([1, 1])
+                    
+                    with opt_col1:
+                        # Only show Optimize button if not already optimized
+                        if not st.session_state.is_optimized:
+                            if st.button("✨ Auto-Optimise", help="Run AI to find best barrier placement"):
+                                progress_bar = st.progress(0)
+                                status_text = st.empty()
+                                viz_placeholder = st.empty()
+                                
+                                # Run Optimizer
+                                best_grid = optimiser.run_optimisation(
+                                    status_text,
+                                    viz_placeholder,
+                                    st.session_state["setup_agents_slider"],
+                                    max_iter=50,  # Adjusted for speed
+                                    patience=10,
+                                    default_grid=current_grid
+                                )
+                                
+                                # Store Result & Set Flag
+                                st.session_state.sim_params["structure_grid"] = best_grid
+                                st.session_state.is_optimized = True
+                                st.rerun() # Rerun fragment to update preview
+                    
+                    with opt_col2:
+                        # Show Reset button if optimized
+                        if st.session_state.is_optimized:
+                            if st.button("Reset Map"):
+                                reset_optimization_cb()
+                                st.rerun()
+
+                # Render the Fragment
+                render_setup_interface()
 
                 st.markdown("---")
                 
-                # E. Start Button
+                # E. Start Button (Global Scope)
                 st.button("🚀 Start Simulation", on_click=start_simulation, type="primary", use_container_width=True)
 
         # --- RIGHT COLUMN: GUIDE ---
@@ -188,37 +207,43 @@ if st.session_state.page == "setup":
                 st.markdown("""
                 1. **Setup**: Choose agent count and panic level.
                 2. **Venue**: Select a map from the dropdown.
-                3. **Optimise**: Click 'Auto-Optimise' to let the AI place barriers for you.
+                3. **Optimise**: Click 'Auto-Optimise' to let the AI place barriers.
                 4. **Run**: Click Start to watch the physics live.
                 """)
-            st.info("💡 **Tip:** Optimisation runs a fast 'headless' simulation to test hundreds of barrier layouts.")
+            st.info("💡 **Tip:** Optimization runs a fast 'headless' simulation to test hundreds of layouts.")
 
 # --- PAGE 2: SIMULATION ---
 elif st.session_state.page == "simulation":
     
-    # 1. Retrieve Config
+    # 1. Forcefully clear the Setup UI
+    main_interface.empty()
+    
+    # 2. Retrieve Config
     init_agents = st.session_state.sim_params.get("num_agents", 500)
     init_rowdiness = st.session_state.sim_params.get("rowdiness_level", 0.0)
+    init_switch = st.session_state.sim_params.get("switch_chance", 0.001)
+    
     structure_grid = st.session_state.sim_params.get("structure_grid")
 
-    # Safety Check
     if structure_grid is None:
-        st.error("Map data missing. Returning to setup...")
-        if st.button("Back"): stop_simulation()
+        st.error("No map data found. Please return to setup.")
+        if st.button("Back to Setup"):
+            stop_simulation()
+            st.rerun()
     else:
-        # 2. Sidebar Controls (Live Updates)
-        rowdiness = render.render_sidebar_controls(
+        # 3. Sidebar Controls
+        rowdiness, switch_chance = render.render_sidebar_controls(
             stop_callback=stop_simulation, 
-            initial_rowdiness=init_rowdiness
+            initial_rowdiness=init_rowdiness,
+            initial_switch_chance=init_switch
         )
 
-        # 3. Main Simulation Area
+        # 4. Simulation Layout
         st.markdown("<h2 style='text-align: center;'>Live Simulation</h2>", unsafe_allow_html=True)
         
-        # Center the canvas using columns
         c1, c2, c3 = st.columns([1, 6, 1])
         with c2:
             canvas_placeholder = st.empty()
         
-        # 4. Run the Game Loop
-        loop.run_simulation(canvas_placeholder, init_agents, rowdiness, structure_grid)
+        # 5. Run the Loop
+        loop.run_simulation(canvas_placeholder, init_agents, rowdiness, structure_grid, switch_chance)

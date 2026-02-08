@@ -4,7 +4,7 @@ from . import physics      # The Model
 from . import render       # The View
 from . import constants as c
 
-def run_simulation(canvas_placeholder, num_agents, rowdiness, structure_grid):
+def run_simulation(canvas_placeholder, num_agents, rowdiness, structure_grid, switch_chance):
     """
     The main Game Loop. 
     This function BLOCKS execution (contains while True).
@@ -34,7 +34,7 @@ def run_simulation(canvas_placeholder, num_agents, rowdiness, structure_grid):
         for _ in range(c.SUB_TICKS):
             # Pass the current state, get the updated state back
             # Note: We also pass structure_grid because physics.tick needs it for wall forces
-            state = physics.tick(state, rowdiness, structure_grid)
+            state = physics.tick(state, rowdiness, structure_grid, switch_chance)
             
         # C. GET DATA (Pull from Model)
         # The getters now require the 'state' dictionary to know what to read

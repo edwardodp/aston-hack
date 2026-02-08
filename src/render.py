@@ -6,10 +6,10 @@ from . import constants as c
 
 # --- 1. UI GETTERS ---
 
-def render_sidebar_controls(stop_callback, initial_rowdiness=0.0):
+def render_sidebar_controls(stop_callback, initial_rowdiness=0.0, initial_switch_chance=0.001):
     """
     Draws the sidebar controls for the LIVE simulation phase.
-    Returns: rowdiness
+    Returns: (rowdiness, switch_chance)
     """
     st.sidebar.markdown(
         "<h1 style='text-align: center;'>Live Controls</h1>", 
@@ -18,13 +18,24 @@ def render_sidebar_controls(stop_callback, initial_rowdiness=0.0):
     
     # Live Physics Tweaks
     rowdiness = st.sidebar.slider("Rowdiness (Panic)", 0.0, 1.0, float(initial_rowdiness))
+
+    # NEW: Goal Switching Slider
+    # Uses initial_switch_chance from Setup as the default value
+    switch_chance = st.sidebar.slider(
+        "Wandering (Goal Switch)", 
+        min_value=0.0, 
+        max_value=0.005, 
+        value=float(initial_switch_chance), 
+        step=0.0001,
+        format="%.4f",
+        help="Probability per tick that an agent changes their destination."
+    )
     
     st.sidebar.markdown("---")
     
     sb_col1, sb_col2, sb_col3 = st.sidebar.columns([1, 2, 1])
     
     with sb_col2:
-        # use_container_width=True makes the button fill the entire middle column
         st.button(
             "Reset Simulation", 
             on_click=stop_callback, 
@@ -32,7 +43,6 @@ def render_sidebar_controls(stop_callback, initial_rowdiness=0.0):
             use_container_width=True
         )
     
-    # Legend / Info
     st.sidebar.info(
         """
         **Legend:**
@@ -42,7 +52,7 @@ def render_sidebar_controls(stop_callback, initial_rowdiness=0.0):
         """
     )
     
-    return rowdiness
+    return rowdiness, switch_chance
 
 def get_structure_grid(csv_path=None):
     """
