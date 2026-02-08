@@ -175,9 +175,10 @@ if st.session_state.page == "setup":
                             preview_image = render.get_preview_image(current_grid)
                         
                         if preview_image is not None:
-                            st.image(preview_image, caption="Venue Preview", use_container_width=True)
+                            rendered_image = st.image(preview_image, caption="Venue Preview", use_container_width=True)
                         else:
                             st.info("No preview available for this map.")
+                            rendered_image = st.empty()
                     
                     with c1:
                         st.caption("Map Legend:")
@@ -198,7 +199,7 @@ if st.session_state.page == "setup":
                             if st.button("Auto-Optimise", help="Run AI to find best barrier placement"):
                                 status_text = st.empty()
                                 
-                                viz_placeholder = st.empty()
+                                viz_placeholder = rendered_image
                                 
                                 # Run Optimizer
                                 best_grid = optimiser.run_optimisation(
