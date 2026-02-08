@@ -107,6 +107,8 @@ if st.session_state.page == "setup":
             st.markdown("- *Collision Prediction*")
             st.markdown("- *Social Force Model*")
             st.markdown("- *Automated Barrier Placement*")
+            st.markdown("- *Real time pressure graph*")
+            st.markdown("- *Audio Integration with Model*")
             st.caption("Build v1.0.0 | State: Ready")
         
         # --- MIDDLE COLUMN: INPUTS (Fragmented) ---
