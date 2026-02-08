@@ -22,157 +22,194 @@ def get_personality_params(rowdiness_percent):
         "noise":           lerp(c.NOISE_CALM, c.NOISE_PANIC, r)
     }
 
-# --- 2. PHYSICS FORCES (JIT COMPILED) ---
+# --- SPATIAL PARTITIONING HELPER (The Secret Sauce) ---
+
+@njit(cache=True)
+def build_cell_list(pos, cell_size, grid_cols, grid_rows):
+    """
+    Builds a 'Head/Next' linked list for spatial partitioning.
+    O(N) complexity.
+    """
+    N = len(pos)
+    # Total number of cells in the spatial grid
+    # We use a slightly coarser grid than the wall grid for efficiency
+    # E.g., cell_size = interaction_radius (approx 30-40 pixels)
+    
+    num_cells = grid_cols * grid_rows
+    
+    # head[cell_index] -> points to the first agent index in that cell
+    head = np.full(num_cells, -1, dtype=np.int32)
+    
+    # next_node[agent_index] -> points to the next agent index in the same cell
+    next_node = np.full(N, -1, dtype=np.int32)
+    
+    for i in range(N):
+        # Calculate cell index
+        cx = int(pos[i, 0] / cell_size)
+        cy = int(pos[i, 1] / cell_size)
+        
+        # Clamp to bounds
+        if cx < 0: cx = 0
+        if cx >= grid_cols: cx = grid_cols - 1
+        if cy < 0: cy = 0
+        if cy >= grid_rows: cy = grid_rows - 1
+        
+        cell_index = cy * grid_cols + cx
+        
+        # Insert at head (Linked List insertion)
+        next_node[i] = head[cell_index]
+        head[cell_index] = i
+        
+    return head, next_node
+
+# --- 2. OPTIMIZED PHYSICS FORCES ---
 
 @njit(cache=True)
 def get_driving_force(pos, vel, goal, desired_speed, tau, mass_array):
     """
-    Calculates self-driven force. 
+    Calculates self-driven force. (No changes needed here, purely local)
     """
-    direction_vector = goal - pos 
-    # Numba supports linalg.norm
-    distance = np.empty(len(direction_vector), dtype=np.float64)
-    for i in range(len(direction_vector)):
-        val = np.linalg.norm(direction_vector[i])
-        distance[i] = val if val > 0 else 0.001
+    N = len(pos)
+    force = np.zeros((N, 2))
     
-    # We reshape to allow broadcasting (N, 1)
-    unit_direction = direction_vector / distance.reshape(-1, 1)
-    desired_velocity = unit_direction * desired_speed
-    
-    force = (desired_velocity - vel) / tau
-    return force * mass_array.reshape(-1, 1)
-
-@njit(cache=True)
-def get_social_force(pos, interaction_radius, repulsion_strength):
-    """
-    Psychological Repulsion (Exponential).
-    """
-    N = pos.shape[0]
-    if N == 0: return np.zeros((0, 2))
-
-    # Numba handles broadcasting, but explicit loops are often faster and use less memory.
-    # However, for simplicity/compatibility, we stick to the array syntax which Numba optimizes well.
-    diff = pos.reshape(N, 1, 2) - pos.reshape(1, N, 2)
-    
-    # Manually compute norm to avoid complex axis arguments if needed, 
-    # but modern Numba supports axis=2.
-    dists = np.sqrt(np.sum(diff**2, axis=2))
-    
-    # Avoid division by zero
-    # We add epsilon to dists where dists is 0
-    safe_dists = dists.copy()
     for i in range(N):
-        for j in range(N):
-            if safe_dists[i, j] < 1e-8:
-                safe_dists[i, j] = 1.0 # arbitrary, we will mask it out anyway
-
-    directions = diff / safe_dists.reshape(N, N, 1)
-    
-    # Identity mask
-    not_self_mask = np.ones((N, N)) - np.eye(N)
-    range_mask = dists < interaction_radius
-    active_mask = not_self_mask * range_mask
-    
-    # Exponential decay
-    magnitude = repulsion_strength * np.exp(-dists / (interaction_radius / 2.0))
-    
-    # Combine
-    force_vectors = directions * magnitude.reshape(N, N, 1) * active_mask.reshape(N, N, 1)
-    
-    return np.sum(force_vectors, axis=1)
-
-@njit(cache=True)
-def get_agent_contact_force(pos, diameters, stiffness):
-    """
-    Physical Contact Force (Hooke's Law).
-    Strictly handles body overlap.
-    """
-    N = pos.shape[0]
-    if N == 0: return np.zeros((0, 2))
-    
-    diff = pos.reshape(N, 1, 2) - pos.reshape(1, N, 2)
-    dists = np.sqrt(np.sum(diff**2, axis=2))
-    
-    radii = diameters / 2.0
-    radii_sum = radii.reshape(N, 1) + radii.reshape(1, N)
-    
-    overlap = radii_sum - dists
-    overlap_mask = overlap > 0
-    
-    not_self_mask = np.ones((N, N)) - np.eye(N)
-    # Bitwise AND on boolean arrays
-    active_mask = overlap_mask & (not_self_mask > 0.5)
-    
-    # Safe division
-    safe_dists = dists.copy()
-    for i in range(N):
-        for j in range(N):
-            if safe_dists[i, j] < 1e-8:
-                safe_dists[i, j] = 1.0 
-
-    directions = diff / safe_dists.reshape(N, N, 1)
-    magnitude = stiffness * overlap
-    
-    force_vectors = directions * magnitude.reshape(N, N, 1) * active_mask.reshape(N, N, 1)
-    
-    return np.sum(force_vectors, axis=1)
-
-# --- 3. MODULAR GRID FORCE (JIT COMPILED) ---
-
-@njit(cache=True)
-def _get_wall_interaction(pos, diameters, cell_box):
-    # Numba requires explicit array creation for stacking if shapes differ,
-    # but here we compute vector-wise
-    
-    # pos is (N, 2), cell_box is (4,) [x1, y1, x2, y2]
-    # We clamp pos x/y to the box edges
-    
-    # Manual clipping for Numba speed
-    closest_x = np.empty_like(pos[:, 0])
-    closest_y = np.empty_like(pos[:, 1])
-    
-    for i in range(len(pos)):
-        px = pos[i, 0]
-        py = pos[i, 1]
+        # Vector to goal
+        dx = goal[i, 0] - pos[i, 0]
+        dy = goal[i, 1] - pos[i, 1]
+        dist_sq = dx*dx + dy*dy
+        dist = np.sqrt(dist_sq)
         
-        # Clip X
-        if px < cell_box[0]: cx = cell_box[0]
-        elif px > cell_box[2]: cx = cell_box[2]
-        else: cx = px
-            
-        # Clip Y
-        if py < cell_box[1]: cy = cell_box[1]
-        elif py > cell_box[3]: cy = cell_box[3]
-        else: cy = py
-            
-        closest_x[i] = cx
-        closest_y[i] = cy
+        if dist < 0.001: dist = 0.001
+        
+        # Desired Velocity
+        ex = dx / dist
+        ey = dy / dist
+        
+        des_vx = ex * desired_speed
+        des_vy = ey * desired_speed
+        
+        # F = (v_desired - v_current) / tau * m
+        fx = (des_vx - vel[i, 0]) / tau * mass_array[i]
+        fy = (des_vy - vel[i, 1]) / tau * mass_array[i]
+        
+        force[i, 0] = fx
+        force[i, 1] = fy
+        
+    return force
 
-    dist_vec_x = pos[:, 0] - closest_x
-    dist_vec_y = pos[:, 1] - closest_y
+@njit(cache=True)
+def get_social_force_optimized(pos, interaction_radius, repulsion_strength, head, next_node, cell_size, grid_cols, grid_rows):
+    """
+    Calculates Social Force using Spatial Grid.
+    Complexity: O(N * density) instead of O(N^2)
+    """
+    N = len(pos)
+    force = np.zeros((N, 2))
     
-    # Recombine
-    center_dist = np.sqrt(dist_vec_x**2 + dist_vec_y**2)
+    # Precompute squared radius to avoid sqrt calls
+    radius_sq = interaction_radius * interaction_radius
+    
+    for i in range(N):
+        fx = 0.0
+        fy = 0.0
+        
+        # Determine my cell
+        cx = int(pos[i, 0] / cell_size)
+        cy = int(pos[i, 1] / cell_size)
+        
+        # Check Neighbor Cells (3x3 grid)
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                nx = cx + dx
+                ny = cy + dy
+                
+                # Bounds check
+                if nx >= 0 and nx < grid_cols and ny >= 0 and ny < grid_rows:
+                    cell_idx = ny * grid_cols + nx
+                    
+                    # Traverse Linked List for this cell
+                    j = head[cell_idx]
+                    while j != -1:
+                        if i != j:
+                            # Calc distance
+                            rx = pos[i, 0] - pos[j, 0]
+                            ry = pos[i, 1] - pos[j, 1]
+                            dist_sq = rx*rx + ry*ry
+                            
+                            if dist_sq < radius_sq and dist_sq > 0.0001:
+                                dist = np.sqrt(dist_sq)
+                                
+                                # Normalized direction
+                                ex = rx / dist
+                                ey = ry / dist
+                                
+                                # Exponential Repulsion
+                                mag = repulsion_strength * np.exp(-dist / (interaction_radius / 2.0))
+                                
+                                fx += ex * mag
+                                fy += ey * mag
+                        
+                        j = next_node[j] # Move to next agent in cell
+        
+        force[i, 0] = fx
+        force[i, 1] = fy
+        
+    return force
 
-    # Handle degenerates
-    for i in range(len(center_dist)):
-        if center_dist[i] < 0.001:
-            dist_vec_x[i] = 0.1
-            dist_vec_y[i] = 0.0
-            center_dist[i] = 0.1
-
-    radius = diameters / 2.0
-    surface_dist = center_dist - radius
+@njit(cache=True)
+def get_contact_force_optimized(pos, diameters, stiffness, head, next_node, cell_size, grid_cols, grid_rows):
+    """
+    Calculates Contact Force using Spatial Grid.
+    """
+    N = len(pos)
+    force = np.zeros((N, 2))
     
-    # Normalize direction
-    dir_x = dist_vec_x / center_dist
-    dir_y = dist_vec_y / center_dist
-    
-    # Stack manually
-    direction = np.stack((dir_x, dir_y), axis=1)
-    
-    return direction, surface_dist
+    for i in range(N):
+        fx = 0.0
+        fy = 0.0
+        
+        cx = int(pos[i, 0] / cell_size)
+        cy = int(pos[i, 1] / cell_size)
+        
+        my_radius = diameters[i] / 2.0
+        
+        for dy in (-1, 0, 1):
+            for dx in (-1, 0, 1):
+                nx = cx + dx
+                ny = cy + dy
+                
+                if nx >= 0 and nx < grid_cols and ny >= 0 and ny < grid_rows:
+                    cell_idx = ny * grid_cols + nx
+                    
+                    j = head[cell_idx]
+                    while j != -1:
+                        if i != j:
+                            rx = pos[i, 0] - pos[j, 0]
+                            ry = pos[i, 1] - pos[j, 1]
+                            dist_sq = rx*rx + ry*ry
+                            
+                            radii_sum = my_radius + (diameters[j] / 2.0)
+                            radii_sum_sq = radii_sum * radii_sum
+                            
+                            if dist_sq < radii_sum_sq and dist_sq > 0.0001:
+                                dist = np.sqrt(dist_sq)
+                                overlap = radii_sum - dist
+                                
+                                # Push direction
+                                ex = rx / dist
+                                ey = ry / dist
+                                
+                                mag = stiffness * overlap
+                                
+                                fx += ex * mag
+                                fy += ey * mag
+                                
+                        j = next_node[j]
+        
+        force[i, 0] = fx
+        force[i, 1] = fy
+        
+    return force
 
 @njit(cache=True)
 def _calc_force_magnitude(surface_dist, repulsion_strength, repulsion_range, wall_stiffness):
@@ -348,9 +385,6 @@ def init_state(num_agents, grid_map):
     }
 
 def tick(state, rowdiness_val, grid_map, poi_switch_chance=0.01):
-    """
-    Python orchestration layer. Unpacks state, calls JIT functions, updates state.
-    """
     pos = state['pos']
     vel = state['vel']
     diameters = state['diameters']
@@ -359,46 +393,55 @@ def tick(state, rowdiness_val, grid_map, poi_switch_chance=0.01):
     num_agents = len(pos)
     if num_agents == 0: return state
     
+    # ... (Goal switching logic remains the same) ...
     poi_locs = state.get('poi_locations')
-    
-    # 0. Goal Switching (Python Logic - Randomness is fast enough here)
     if poi_switch_chance > 0 and poi_locs is not None and len(poi_locs) > 0:
-        switch_mask = np.random.rand(num_agents) < poi_switch_chance
-        num_switching = np.sum(switch_mask)
-        
-        if num_switching > 0:
-            random_indices = np.random.randint(0, len(poi_locs), size=int(num_switching))
-            new_goals = poi_locs[random_indices]
-            goals[switch_mask] = new_goals
+        if np.random.rand() < 0.1: # Optimization: Only check switch logic occasionally
+            switch_mask = np.random.rand(num_agents) < poi_switch_chance
+            if np.sum(switch_mask) > 0:
+                random_indices = np.random.randint(0, len(poi_locs), size=int(np.sum(switch_mask)))
+                goals[switch_mask] = poi_locs[random_indices]
 
-    # 1. Map Parameters
     params = get_personality_params(rowdiness_val * 100)
-
-    # 2. Variable Mass Calculation
     mass_array = (diameters / c.REF_DIAMETER)**2 * c.BASE_MASS
 
-    # 3. Calculate Forces (CALLING JIT FUNCTIONS)
+    # --- NEW: Build Spatial Grid ---
+    # Cell size should be roughly equal to the max interaction radius
+    # 40.0 pixels is a safe upper bound for interaction_radius (panic mode is ~35)
+    spatial_cell_size = 40.0 
+    s_cols = int(c.LOGICAL_WIDTH / spatial_cell_size) + 1
+    s_rows = int(c.LOGICAL_HEIGHT / spatial_cell_size) + 1
+    
+    head, next_node = build_cell_list(pos, spatial_cell_size, s_cols, s_rows)
+    # -------------------------------
+
+    # 1. Driving Force (Parallel)
     F_goal = get_driving_force(pos, vel, goals, params['desired_speed'], params['tau'], mass_array)
     
-    F_social = get_social_force(pos, params['radius'], params['social_strength'])
+    # 2. Social Force (Spatial Optimized)
+    F_social = get_social_force_optimized(
+        pos, params['radius'], params['social_strength'], 
+        head, next_node, spatial_cell_size, s_cols, s_rows
+    )
     
-    F_contact = get_agent_contact_force(pos, diameters, c.AGENT_CONTACT_STIFFNESS)
+    # 3. Contact Force (Spatial Optimized)
+    F_contact = get_contact_force_optimized(
+        pos, diameters, c.AGENT_CONTACT_STIFFNESS, 
+        head, next_node, spatial_cell_size, s_cols, s_rows
+    )
     
+    # 4. Grid Force (Existing JIT)
     cell_w = c.LOGICAL_WIDTH / c.GRID_COLS
     cell_h = c.LOGICAL_HEIGHT / c.GRID_ROWS
-    
-    # Pass explicit constants to JIT function
     F_grid = get_grid_force(
         pos, grid_map, cell_w, cell_h, diameters, 
-        c.WALL_REPULSION_STRENGTH, 
-        c.WALL_STIFFNESS, 
-        c.WALL_REPULSION_DIST,
+        c.WALL_REPULSION_STRENGTH, c.WALL_STIFFNESS, c.WALL_REPULSION_DIST,
         c.GRID_ROWS, c.GRID_COLS
     )
     
     F_noise = np.random.uniform(-1, 1, size=(num_agents, 2)) * params['noise']
 
-    # 4. Integration
+    # Integration
     F_total = F_goal + F_social + F_contact + F_grid + F_noise
     
     acceleration = F_total / mass_array[:, np.newaxis]
@@ -406,26 +449,29 @@ def tick(state, rowdiness_val, grid_map, poi_switch_chance=0.01):
     
     max_speed = params['desired_speed'] * 1.5
     speed_mag = np.linalg.norm(vel, axis=1)
+    
+    # Manual clipping loop is often faster in Numba, but numpy is fine here for now
     limit_mask = speed_mag > max_speed
     if np.any(limit_mask):
         vel[limit_mask] = (vel[limit_mask] / speed_mag[limit_mask, np.newaxis]) * max_speed
         
     pos += vel * c.DT
     
+    # Boundary Clip
     pos[:, 0] = np.clip(pos[:, 0], 0, c.LOGICAL_WIDTH - 0.1)
     pos[:, 1] = np.clip(pos[:, 1], 0, c.LOGICAL_HEIGHT - 0.1)
 
-    # 5. Pressure Calculation
+    # Pressure Calculation (Reuse optimized forces)
     crush_forces = F_social + F_contact
     crush_mag = np.linalg.norm(crush_forces, axis=1)
-
+    
+    # (Barrier mask logic remains the same...)
     c_idx = (pos[:, 0] / cell_w).astype(int)
     r_idx = (pos[:, 1] / cell_h).astype(int)
     c_idx = np.clip(c_idx, 0, c.GRID_COLS-1)
     r_idx = np.clip(r_idx, 0, c.GRID_ROWS-1)
     
     near_barrier_mask = np.zeros(num_agents, dtype=bool)
-    # Simple check (non-JIT is fine for this mask calc, or we could JIT it)
     for dy in [-1, 0, 1]:
         for dx in [-1, 0, 1]:
             ny = np.clip(r_idx + dy, 0, c.GRID_ROWS-1)
@@ -434,7 +480,6 @@ def tick(state, rowdiness_val, grid_map, poi_switch_chance=0.01):
 
     relief_factor = np.ones(num_agents)
     relief_factor[near_barrier_mask] = 0.2 
-    
     final_pressure = crush_mag * 0.10 * relief_factor
     
     state['pressures'] = np.clip(final_pressure, 0, 255)
