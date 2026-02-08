@@ -2,7 +2,7 @@
 ### Protecting Communities Through Crowd Dynamics Simulation
 > **Submission for AstonHack 11**
 
-![Python](https://img.shields.io/badge/Python-3.11+-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.12+-blue.svg)
 ![Streamlit](https://img.shields.io/badge/Streamlit-App-red.svg)
 ![Numba](https://img.shields.io/badge/Numba-Accelerated-green.svg)
 
