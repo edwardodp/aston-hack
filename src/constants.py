@@ -29,7 +29,7 @@ SUB_STRATEGY_CHANCE = 1  # 50% chance to apply a sub-strategy
 
 # --- PHYSICS ENGINE CONFIG ---
 DT = 0.016         # Time step (seconds)
-SUB_TICKS = 1     # How many physics steps per 1 render frame
+SUB_TICKS = 1      # How many physics steps per 1 render frame
 
 # --- CORE PHYSICS CONSTANTS ---
 BASE_MASS = 3.0              # kg (Mass of an average agent)
@@ -45,21 +45,21 @@ WALL_REPULSION_STRENGTH = 1000.0
 # --- PERSONALITY PROFILES (Rowdiness Map) ---
 # 1. Desired Speed
 SPEED_CALM = 80.0
-SPEED_PANIC = 400.0
+SPEED_PANIC = 180.0
 
 # 2. Reaction Time
 TAU_CALM = 0.8
-TAU_PANIC = 0.1
+TAU_PANIC = 0.2
 
 # 3. Personal Space (Psychological Radius)
 # Note: This is separate from Physical Radius (Diameter/2)
 RADIUS_CALM = 100.0
-RADIUS_PANIC = 30.0
+RADIUS_PANIC = 50.0    # Was 30.0
 
 # 4. Social Repulsion (Psychological Strength)
 SOCIAL_PUSH_CALM = 50.0
-SOCIAL_PUSH_PANIC = 1000.0
+SOCIAL_PUSH_PANIC = 500.0
 
 # 5. Noise
 NOISE_CALM = 5.0
-NOISE_PANIC = 500.0
+NOISE_PANIC = 300.0
