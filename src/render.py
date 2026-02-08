@@ -56,16 +56,34 @@ def render_sidebar_controls(stop_callback, initial_rowdiness=0.0, initial_switch
 
 def get_structure_grid(csv_path=None):
     """
-    Returns the 32x32 Integer Grid (0=Empty, 1=Wall).
-    Hardcoded 'Funnel' map for testing.
-    """
-    """
     Returns the 32x32 Integer Grid.
-    If csv_path is provided, loads from file. Otherwise, uses hardcoded default.
+    Priority:
+    1. Explicit 'csv_path' argument (if provided).
+    2. The 'setup_map_select' from Streamlit Session State (if running).
+    3. The Hardcoded Default (Fallback).
     """
     if csv_path and os.path.exists(csv_path):
         return load_grid_from_csv(csv_path)
 
+    # --- 2. Context-Aware Lookup (THE FIX) ---
+    # If no path is passed, check what the user selected in the dropdown.
+    # We wrap this in a try-block to ensure safety if called outside Streamlit.
+    try:
+        # Check if we have a selection in session state
+        selected_file = st.session_state.get("setup_map_select")
+        
+        # If the user selected a CSV file (not "Default"), try to load it
+        if selected_file and selected_file.endswith(".csv"):
+            # We assume the standard assets path here
+            auto_path = os.path.join("assets/preset_maps", selected_file)
+            if os.path.exists(auto_path):
+                return load_grid_from_csv(auto_path)
+    except Exception:
+        # If session_state isn't accessible (e.g., running unit tests), ignore
+        pass
+
+    # --- 3. Hardcoded Default (Fallback) ---
+    # This only runs if no path was passed AND no CSV is selected in the UI.
     grid = np.zeros((c.GRID_ROWS, c.GRID_COLS), dtype=int)
     
     # Borders
@@ -74,17 +92,11 @@ def get_structure_grid(csv_path=None):
     grid[:, 0] = c.ID_WALL
     grid[:, -1] = c.ID_WALL
     
-    grid[1:4, 11:21] = c.ID_POI
-    # grid[26:29, 29:31] = c.ID_POI
-
-    grid[7, 12: 20] = c.ID_BARRIER
+    # grid[1:4, 11:21] = c.ID_POI
+    #
+    # # Default "Funnel" setup
+    # grid[7, 12: 20] = c.ID_BARRIER
     
-    # Funnel
-    # mid = c.GRID_COLS // 2
-    # for r in range(11, 21):
-    #     grid[r, 0 : (mid - (r-8))] = c.ID_WALL
-    #     grid[r, (mid + (r-8)) : c.GRID_COLS] = c.ID_WALL
-        
     return grid
 
 def load_grid_from_csv(file_path):

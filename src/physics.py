@@ -246,7 +246,7 @@ def tick(state, rowdiness_val, grid_map, poi_switch_chance=0.01):
         
         if num_switching > 0:
             # Pick new random goals for the switching agents
-            random_indices = np.random.randint(0, len(poi_locs), size=num_switching)
+            random_indices = np.random.randint(0, len(poi_locs), size=int(num_switching))
             new_goals = poi_locs[random_indices]
             
             # Update the goals in the state array
