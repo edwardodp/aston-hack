@@ -51,7 +51,6 @@ def start_simulation():
     # 3. Switch Page
     st.session_state.page = "simulation"
     st.session_state.sim_running = True
-    # No explicit rerun needed here as button click triggers update
 
 def stop_simulation():
     st.session_state.sim_running = False
@@ -97,7 +96,7 @@ if st.session_state.page == "setup":
 
         # --- LEFT COLUMN: METRICS ---
         with col1:
-            st.markdown("### 📡 System Status")
+            st.markdown("### System Status")
             st.metric(label="Physics Engine", value="Verlet", delta="Active")
             st.metric(label="Optimization Engine", value="Monte Carlo", delta="Ready")
             st.markdown("---")
@@ -148,19 +147,18 @@ if st.session_state.page == "setup":
                     if os.path.exists(maps_dir):
                         available_maps = [f for f in os.listdir(maps_dir) if f.endswith(".csv")]
                     
-                    # Store selection in session state key
                     selected_file = st.selectbox(
-                        "Choose Layout:", 
+                        "Choose Layout:",    
                         available_maps if available_maps else ["Default"],
                         key="setup_map_select"
                     )
 
-                    # Determine Current Grid for Preview
+                    # --- FIX: DETERMINE CURRENT GRID *BEFORE* USING IT IN BUTTONS ---
+                    
                     # 1. If Optimized: Use the stored result
                     if st.session_state.is_optimized:
                         current_grid = st.session_state.sim_params.get("structure_grid")
-                        st.success("✅ Map Optimized by AI")
-                    
+                        
                     # 2. If Not Optimized: Load from File
                     else:
                         if available_maps and selected_file in available_maps:
@@ -168,30 +166,45 @@ if st.session_state.page == "setup":
                             current_grid = render.get_structure_grid(path)
                         else:
                             current_grid = render.get_structure_grid(None)
-
-                    # C. Map Preview Image
-                    if current_grid is not None:
-                        preview_img = render.get_preview_image(current_grid)
-                        st.image(preview_img, caption="Venue Preview", use_container_width=True)
-
-                    # D. Optimization Controls
-                    st.write("")
-                    opt_col1, opt_col2 = st.columns([1, 1])
                     
-                    with opt_col1:
+                    # --- END FIX ---
+
+                    c1, c2 = st.columns([1, 2])
+                    
+                    with c2:
+                        # C. Map Preview Image
+                        if current_grid is not None:
+                            if st.session_state.is_optimized:
+                                st.success("✅ Map Optimized by AI")
+                            preview_img = render.get_preview_image(current_grid)
+                            rendererd_image = st.image(preview_img, caption="Venue Preview", use_container_width=True)
+                    
+                    with c1:
+                        st.caption("Map Legend:")
+                        st.markdown(
+                            """
+                            <div style="display: flex; gap: 10px; font-size: 0.8em;">
+                                <div><span style="color: grey">■</span> Wall</div>
+                                <div><span style="color: purple">■</span> Goal</div>
+                                <div><span style="color: #FFD700">■</span> Barrier</div>
+                            </div>
+                            """, 
+                            unsafe_allow_html=True
+                        )
+                        
+                        st.write("")
                         # Only show Optimize button if not already optimized
                         if not st.session_state.is_optimized:
                             if st.button("✨ Auto-Optimise", help="Run AI to find best barrier placement"):
-                                progress_bar = st.progress(0)
                                 status_text = st.empty()
-                                viz_placeholder = st.empty()
+                                viz_placeholder = rendererd_image
                                 
-                                # Run Optimizer
+                                # Run Optimizer (Now current_grid is defined!)
                                 best_grid = optimiser.run_optimisation(
                                     status_text,
                                     viz_placeholder,
                                     st.session_state["setup_agents_slider"],
-                                    max_iter=50,  # Adjusted for speed
+                                    max_iter=50,
                                     patience=10,
                                     default_grid=current_grid
                                 )
@@ -199,14 +212,15 @@ if st.session_state.page == "setup":
                                 # Store Result & Set Flag
                                 st.session_state.sim_params["structure_grid"] = best_grid
                                 st.session_state.is_optimized = True
-                                st.rerun() # Rerun fragment to update preview
-                    
-                    with opt_col2:
+                                st.rerun() 
+                                
                         # Show Reset button if optimized
                         if st.session_state.is_optimized:
                             if st.button("Reset Map"):
                                 reset_optimization_cb()
                                 st.rerun()
+
+                    
 
                 # Render the Fragment
                 render_setup_interface()
@@ -214,11 +228,11 @@ if st.session_state.page == "setup":
                 st.markdown("---")
                 
                 # E. Start Button (Global Scope)
-                st.button("🚀 Start Simulation", on_click=start_simulation, type="primary", use_container_width=True)
+                st.button("Start Simulation", on_click=start_simulation, type="primary", use_container_width=True)
 
         # --- RIGHT COLUMN: GUIDE ---
         with col3:
-            st.markdown("### 📋 User Guide")
+            st.markdown("### User Guide")
             with st.expander("How to use", expanded=True):
                 st.markdown("""
                 1. **Setup**: Choose agent count and panic level.
