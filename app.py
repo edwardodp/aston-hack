@@ -120,21 +120,23 @@ if st.session_state.page == "setup":
                     st.slider("Number of Agents", 100, 2000, 500, key="setup_agents_slider")
                     st.write("") 
                     st.slider(
-                        "Crowd Rowdiness (Panic)", 
+                        "Crowd Rowdiness", 
                         min_value=0.0, 
                         max_value=1.0, 
                         value=0.0, 
-                        key="setup_rowdiness_slider"
+                        key="setup_rowdiness_slider",
+                        help="Simulate a more pushy and agitated crowd with a higher rowdiness."
                     )
                     st.write("")
                     st.slider(
-                        "Wandering (Goal Switch)", 
+                        "Wandering", 
                         min_value=0.0, 
                         max_value=0.005, 
                         value=0.001, 
                         step=0.0001,
                         format="%.4f",
-                        key="setup_switch_slider"
+                        key="setup_switch_slider",
+                        help="Probability per tick that an agent changes their destination."
                     )
                     st.write("")
                     
