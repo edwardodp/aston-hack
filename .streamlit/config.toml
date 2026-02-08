@@ -112,26 +112,26 @@ weight = "900"
 [theme]
 base = "dark"
 primaryColor = "#00e5ff"
-backgroundColor = "#2a2a2a"
-secondaryBackgroundColor = "#121212"
-codeBackgroundColor = "#121212"
+# Main background is now very deep grey/black (was #2a2a2a)
+backgroundColor = "#111111"
+# Inputs and secondary areas are pure black (was #121212)
+secondaryBackgroundColor = "#000000"
+codeBackgroundColor = "#000000"
 textColor = "#ffffff"
 linkColor = "#00e5ff"
-borderColor = "#7c7c7c"
+# Darkened border slightly to blend with the new black background
+borderColor = "#444444"
 showWidgetBorder = true
 baseRadius = "0.3rem"
 buttonRadius = "full"
 font = "Poppins"
-# Reduced weights slightly for a lighter feel
 headingFontWeights = [600, 500, 500, 500, 500, 500]
-# SCALED DOWN SIZES:
-# Old: ["3rem", "2.5rem", "2.25rem", "2rem", "1.5rem"]
-# New: ["2.25rem", "1.75rem", "1.5rem", "1.25rem", "1.1rem"]
 headingFontSizes = ["2.25rem", "1.75rem", "1.5rem", "1.25rem", "1.1rem"]
 chartCategoricalColors = ["#ffc862", "#2d46b9", "#b49bc8"]
 
 [theme.sidebar]
-backgroundColor = "#121212"
-secondaryBackgroundColor = "#000000"
-codeBackgroundColor = "#2a2a2a"
-borderColor = "#696969"
+# Sidebar is now pure black
+backgroundColor = "#000000"
+secondaryBackgroundColor = "#111111"
+codeBackgroundColor = "#111111"
+borderColor = "#333333"
