@@ -8,7 +8,7 @@ from . import constants as c
 
 # --- 1. UI GETTERS ---
 
-def render_sidebar_controls(stop_callback, initial_rowdiness=0.0, initial_switch_chance=0.001):
+def render_sidebar_controls(stop_callback, initial_rowdiness=0.0, initial_switch_chance=0.001, music_active=False):
     """
     Draws the sidebar controls for the LIVE simulation phase.
     """
@@ -17,8 +17,20 @@ def render_sidebar_controls(stop_callback, initial_rowdiness=0.0, initial_switch
         unsafe_allow_html=True
     )
     
+    disable_msg = "Controlled by Audio Analysis"
+    
+    if music_active:
+        st.sidebar.success("🎵 Music Integration Active")
+        st.sidebar.caption("Crowd behavior is being driven by the music track.")
+    
     # Live Physics Tweaks
-    rowdiness = st.sidebar.slider("Rowdiness", 0.0, 1.0, float(initial_rowdiness), help="Simulate a more pushy and agitated crowd with a higher rowdiness.")
+    rowdiness = st.sidebar.slider(
+        "Rowdiness", 
+        0.0, 1.0, 
+        float(initial_rowdiness), 
+        disabled=music_active,
+        help=disable_msg if music_active else "Simulate a more pushy and agitated crowd."
+    )
 
     switch_chance = st.sidebar.slider(
         "Wandering", 
@@ -27,7 +39,8 @@ def render_sidebar_controls(stop_callback, initial_rowdiness=0.0, initial_switch
         value=float(initial_switch_chance), 
         step=0.0001,
         format="%.4f",
-        help="Probability per tick that an agent changes their destination."
+        disabled=music_active,
+        help=disable_msg if music_active else "Probability per tick that an agent changes their destination."
     )
     
     st.sidebar.markdown("---")

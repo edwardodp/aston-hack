@@ -26,7 +26,7 @@ COLOR_BARRIER  = (0, 215, 255)       # Dark Yellow/Gold (B=0, G=215, R=255)
 
 # --- PHYSICS ENGINE CONFIG ---
 DT = 0.016         # Time step (seconds)
-SUB_TICKS = 2     # How many physics steps per 1 render frame
+SUB_TICKS = 1     # How many physics steps per 1 render frame
 
 # --- CORE PHYSICS CONSTANTS ---
 BASE_MASS = 3.0              # kg (Mass of an average agent)

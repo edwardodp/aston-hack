@@ -3,7 +3,10 @@ from PIL import Image
 from src import render
 from src import loop
 from src import optimiser  # Imported the optimization engine
+from src import music_analyser
+import tempfile
 import os
+
 
 # --- SETUP PAGE CONFIG ---
 try:
@@ -115,8 +118,11 @@ if st.session_state.page == "setup":
                 def render_setup_interface():
                     st.markdown("<h3 style='text-align: center;'>Configuration</h3>", unsafe_allow_html=True)
                     
+                    # CHECK MUSIC STATUS
+                    has_music = "music_data" in st.session_state.sim_params
+                    
                     # A. Sliders
-                    st.slider("Number of Agents", 100, 2000, 500, key="setup_agents_slider")
+                    st.slider("Number of Agents", 1, 2000, 250, key="setup_agents_slider")
                     st.write("") 
                     st.slider(
                         "Crowd Rowdiness", 
@@ -124,7 +130,8 @@ if st.session_state.page == "setup":
                         max_value=1.0, 
                         value=0.0, 
                         key="setup_rowdiness_slider",
-                        help="Simulate a more pushy and agitated crowd with a higher rowdiness."
+                        disabled=has_music,
+                        help="Locked when Music Integration is active." if has_music else "Simulate a more pushy and agitated crowd."
                     )
                     st.write("")
                     st.slider(
@@ -135,13 +142,13 @@ if st.session_state.page == "setup":
                         step=0.0001,
                         format="%.4f",
                         key="setup_switch_slider",
-                        help="Probability per tick that an agent changes their destination."
+                        disabled=has_music,
+                        help="Locked when Music Integration is active." if has_music else "Probability per tick that an agent changes destination."
                     )
                     st.write("")
                     
                     # B. Map Selection
                     st.subheader("Venue Selection")
-                    
                     maps_dir = "assets/preset_maps"
                     available_maps = []
                     if os.path.exists(maps_dir):
@@ -220,12 +227,48 @@ if st.session_state.page == "setup":
                             if st.button("Reset Map"):
                                 reset_optimization_cb()
                                 st.rerun()
-
-                    
-
-                # Render the Fragment
+                
+                
+                st.write("")
+                
                 render_setup_interface()
+                
+                st.subheader("Audio Integration")
+                music_upload = st.file_uploader("Upload Music (mp3/wav)", type=['mp3', 'wav', 'ogg'])
 
+                # 1. HANDLE DELETION
+                if music_upload is None:
+                    # If user removed file, clear state
+                    if "music_data" in st.session_state.sim_params:
+                        del st.session_state.sim_params["music_data"]
+                        del st.session_state.sim_params["music_file"]
+                        st.rerun() # Refresh to unlock sliders
+                
+                # 2. HANDLE UPLOAD & ANALYSIS
+                elif music_upload is not None:
+                    # Only show analyze button if we haven't analyzed this specific file yet
+                    # (or just simple check if music_data is missing)
+                    if "music_data" not in st.session_state.sim_params:
+                        if st.button("Analyze Audio"):
+                            with st.spinner("Analyzing RMS Energy, Onset Strength and Tempo..."):
+                                with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(music_upload.name)[1]) as tmp:
+                                    tmp.write(music_upload.getvalue())
+                                    tmp_path = tmp.name
+                                
+                                try:
+                                    data = music_analyser.analyze_music_for_rowdiness(tmp_path)
+                                    st.session_state.sim_params["music_data"] = data
+                                    st.session_state.sim_params["music_file"] = music_upload
+                                    st.rerun() # Refresh to lock sliders
+                                except Exception as e:
+                                    st.error(f"Error: {e}")
+                                finally:
+                                    if os.path.exists(tmp_path): os.remove(tmp_path)
+                    else:
+                        st.success(f"✅ Analysis Complete! ({st.session_state.sim_params['music_data']['tempo']:.1f} BPM)")
+                        st.info("🔒 Rowdiness & Wandering are now controlled by the music.")
+
+                
                 st.markdown("---")
                 
                 # E. Start Button (Global Scope)
@@ -239,7 +282,7 @@ if st.session_state.page == "setup":
                 1. **Setup**: Choose agent count and panic level.
                 2. **Venue**: Select a map from the dropdown.
                 3. **Optimise**: Click 'Auto-Optimise' to let the AI place barriers.
-                4. **Run**: Click Start to watch the physics live.
+                4. **Run**: Watch the crowd vibe to the beat with live physics.
                 """)
             st.info("💡 **Tip:** Optimization runs a fast 'headless' simulation to test hundreds of layouts.")
 
@@ -253,8 +296,10 @@ elif st.session_state.page == "simulation":
     init_agents = st.session_state.sim_params.get("num_agents", 500)
     init_rowdiness = st.session_state.sim_params.get("rowdiness_level", 0.0)
     init_switch = st.session_state.sim_params.get("switch_chance", 0.001)
-    
     structure_grid = st.session_state.sim_params.get("structure_grid")
+    
+    # Check for music
+    music_active = "music_data" in st.session_state.sim_params
 
     if structure_grid is None:
         st.error("No map data found. Please return to setup.")
@@ -266,11 +311,21 @@ elif st.session_state.page == "simulation":
         rowdiness, switch_chance, chart_placeholder = render.render_sidebar_controls(
             stop_callback=stop_simulation, 
             initial_rowdiness=init_rowdiness,
-            initial_switch_chance=init_switch
+            initial_switch_chance=init_switch,
+            music_active=music_active
         )
 
         # 4. Simulation Layout
         st.markdown("<h2 style='text-align: center;'>Live Simulation</h2>", unsafe_allow_html=True)
+        
+        # --- NEW: AUDIO PLAYER ---
+        # If a music file was uploaded, play it automatically
+        music_file = st.session_state.sim_params.get("music_file")
+        if music_file:
+            # autoplay=True starts the song immediately
+            st.audio(music_file, format=music_file.type, autoplay=True)
+            st.caption(f"Now Playing: {music_file.name}")
+        # -------------------------
         
         c1, c2, c3 = st.columns([1, 6, 1])
         with c2:
