@@ -213,10 +213,11 @@ if st.session_state.page == "setup":
                                 # Run Optimizer
                                 best_grid = optimiser.run_optimisation(
                                     status_placeholder=status_text,
-                                    canvas_placeholder=viz_placeholder, # Pass the empty UI container
+                                    canvas_placeholder=viz_placeholder,
                                     num_agents=st.session_state["setup_agents_slider"],
-                                    max_iter=50,
-                                    patience=10,
+                                    rowdiness=st.session_state["setup_rowdiness_slider"],
+                                    max_iter=1000,
+                                    patience=200,
                                     default_grid=current_grid
                                 )
                                 

@@ -17,7 +17,7 @@ def get_static_map():
         
     return grid
 
-# --- 2. SAFE PLACEMENT HELPER ---
+# --- 2. SAFE PLACEMENT HELPERS ---
 
 def safe_place_barrier(grid, row, col_start, col_end):
     """
@@ -30,91 +30,88 @@ def safe_place_barrier(grid, row, col_start, col_end):
     col_end = int(np.clip(col_end, 0, c.GRID_COLS))
     
     # Iterate and place carefully
-    # (We iterate to handle potential walls in the middle of a line)
     for col in range(col_start, col_end):
         if grid[row, col] == c.ID_NOTHING:
             grid[row, col] = c.ID_BARRIER
 
-# --- 3. BARRIER PATTERNS (UNBIASED) ---
+def safe_place_barrier_vertical(grid, col, row_start, row_end):
+    """
+    Helper to place a VERTICAL barrier segment safely.
+    It ONLY overwrites Empty cells (ID_NOTHING).
+    """
+    # Ensure indices are within bounds
+    col = int(np.clip(col, 0, c.GRID_COLS - 1))
+    row_start = int(np.clip(row_start, 0, c.GRID_ROWS))
+    row_end = int(np.clip(row_end, 0, c.GRID_ROWS))
+    
+    # Iterate and place carefully
+    for row in range(row_start, row_end):
+        if grid[row, col] == c.ID_NOTHING:
+            grid[row, col] = c.ID_BARRIER
 
-def strategy_single_row(grid):
-    """
-    A single horizontal barrier.
-    RANGE: Anywhere vertically (Top to Bottom).
-    """
-    # 1. Randomize Position (Anywhere in the arena)
-    row = np.random.randint(2, c.GRID_ROWS - 2)
-    
-    # 2. Randomize Gap
-    gap = np.random.randint(2, 8)
-    
-    # 3. Randomize Horizontal Center of the gap (Not just the middle of map)
-    gap_center = np.random.randint(4, c.GRID_COLS - 4)
-    
-    left_end = gap_center - (gap // 2)
-    right_start = gap_center + (gap // 2)
-    
-    # 4. Apply
-    safe_place_barrier(grid, row, 1, left_end)
-    safe_place_barrier(grid, row, right_start, c.GRID_COLS - 1)
-    
-    return grid, f"Single Row (Row {row})"
+# --- 3. MAIN STRATEGIES ---
 
-def strategy_zigzag(grid):
+def strategy_empty(grid):
     """
-    Two staggered rows.
-    RANGE: Anywhere vertically.
+    Places NO main barriers. 
+    Allows the optimizer to test 'Sub-Strategies Only' (Just Cordon, Just Hairs).
     """
-    # Top Row
-    row_top = np.random.randint(2, c.GRID_ROWS - 6)
-    
-    # Bottom Row (2-6 rows below top)
-    row_bot = row_top + np.random.randint(2, 6)
-    
-    # Randomize gap positions independently
-    gap_top = np.random.randint(2, c.GRID_COLS - 10)
-    gap_bot = np.random.randint(2, c.GRID_COLS - 10)
-    
-    # Apply Top (Block Right side)
-    safe_place_barrier(grid, row_top, gap_top, c.GRID_COLS - 1)
-    
-    # Apply Bottom (Block Left side)
-    safe_place_barrier(grid, row_bot, 1, gap_bot)
-    
-    return grid, f"Zig-Zag (Rows {row_top}/{row_bot})"
+    return _apply_sub_strategies(grid, "No Main Barriers")
 
-def strategy_lane_split(grid):
+def strategy_row_interweaved(grid):
     """
-    Vertical divider.
-    RANGE: Anywhere horizontally (Left to Right).
+    Creates ROWS of barriers with varied lengths (1-6) interweaved.
     """
-    # Random Length
-    length = np.random.randint(5, 20)
+    bar_len = np.random.randint(1, 7)
+    gap_len = np.random.randint(2, 6)
+    v_spacing = np.random.randint(3, 8)
     
-    # Random Column (Anywhere from left to right)
-    col = np.random.randint(2, c.GRID_COLS - 2)
+    period = bar_len + gap_len
+    row_offset = period // 2
+    start_row = np.random.randint(3, 8)
     
-    # Random Start Row
-    start_row = np.random.randint(2, c.GRID_ROWS - length - 2)
-    end_row = start_row + length
-    
-    # Vertical Safe Placement
-    for r in range(start_row, end_row):
-        if grid[r, col] == c.ID_NOTHING:
-            grid[r, col] = c.ID_BARRIER
-    
-    return grid, f"Vertical Split (Col {col})"
+    row_count = 0
+    for r in range(start_row, c.GRID_ROWS - 3, v_spacing):
+        current_shift = 0 if (row_count % 2 == 0) else row_offset
+        for col in range(current_shift, c.GRID_COLS, period):
+            c_end = col + bar_len
+            safe_place_barrier(grid, r, col, c_end)
+        row_count += 1
+        
+    desc = f"Row Interweaved (L={bar_len}, Gap={gap_len})"
+    return _apply_sub_strategies(grid, desc)
 
-def strategy_checkerboard(grid):
+def strategy_col_interweaved(grid):
     """
-    Random Islands.
-    RANGE: Entire Grid.
+    Creates COLUMNS of barriers with varied lengths (1-6) interweaved.
     """
-    # Create a grid of potential island spots
+    bar_len = np.random.randint(1, 7)
+    gap_len = np.random.randint(2, 6)
+    h_spacing = np.random.randint(3, 8)
+    
+    period = bar_len + gap_len
+    col_offset = period // 2
+    start_col = np.random.randint(3, 8)
+    
+    col_count = 0
+    for col_idx in range(start_col, c.GRID_COLS - 3, h_spacing):
+        current_shift = 0 if (col_count % 2 == 0) else col_offset
+        for r in range(current_shift, c.GRID_ROWS, period):
+            r_end = r + bar_len
+            safe_place_barrier_vertical(grid, col_idx, r, r_end)
+        col_count += 1
+        
+    desc = f"Col Interweaved (L={bar_len}, Gap={gap_len})"
+    return _apply_sub_strategies(grid, desc)
+
+def strategy_islands(grid):
+    """
+    Places random 2x2 'pillars' or islands to break up flow.
+    Good for disrupting waves without blocking paths.
+    """
+    num_islands = np.random.randint(5, 15)
     active_count = 0
-    
-    # Try 10 random islands
-    for _ in range(10):
+    for _ in range(num_islands):
         r = np.random.randint(2, c.GRID_ROWS - 3)
         c_idx = np.random.randint(2, c.GRID_COLS - 3)
         
@@ -128,39 +125,129 @@ def strategy_checkerboard(grid):
         if placed:
             active_count += 1
                 
-    return grid, f"Islands (Count {active_count})"
+    return _apply_sub_strategies(grid, f"Islands (Count {active_count})")
 
-def strategy_funnel_entry(grid):
+def strategy_multi_funnels(grid):
     """
-    V-Shape Funnel.
-    RANGE: Anywhere (Can act as a wedge/plow).
+    Places multiple V-shape Wedges (Funnels) of various orientations.
+    Acts as a field of 'plows' to split crowds in multiple directions.
     """
-    # Random Tip Location
-    tip_row = np.random.randint(4, c.GRID_ROWS - 10)
-    tip_col = np.random.randint(5, c.GRID_COLS - 5)
+    num_funnels = np.random.randint(4, 9) # 4 to 8 funnels
     
-    width = np.random.randint(3, 6)
-    
-    for i in range(width):
-        # Left wing
-        r, c_idx = tip_row + i, tip_col - i - 1
-        if 0 <= r < c.GRID_ROWS and 0 <= c_idx < c.GRID_COLS:
-            if grid[r, c_idx] == c.ID_NOTHING:
-                grid[r, c_idx] = c.ID_BARRIER
-                
-        # Right wing
-        r, c_idx = tip_row + i, tip_col + i + 1
-        if 0 <= r < c.GRID_ROWS and 0 <= c_idx < c.GRID_COLS:
-            if grid[r, c_idx] == c.ID_NOTHING:
-                grid[r, c_idx] = c.ID_BARRIER
+    for _ in range(num_funnels):
+        # Random Center
+        r = np.random.randint(5, c.GRID_ROWS - 5)
+        c_idx = np.random.randint(5, c.GRID_COLS - 5)
         
-    return grid, f"Wedge (Tip {tip_row},{tip_col})"
+        # Random Size & Orientation
+        width = np.random.randint(3, 7)
+        orientation = np.random.choice(['UP', 'DOWN', 'LEFT', 'RIGHT'])
+        
+        _place_wedge(grid, r, c_idx, width, orientation)
+        
+    return _apply_sub_strategies(grid, f"Multi-Funnels (x{num_funnels})")
+
+def _place_wedge(grid, r, c_idx, width, orientation):
+    """
+    Draws a V-shape barrier.
+    """
+    for i in range(width):
+        # Calculate wing offsets based on 'i' (distance from tip)
+        
+        # OFFSETS (dr, dc) for Left Wing and Right Wing
+        if orientation == 'UP':    # ^ Shape (Points Up, Wings go Down/Out)
+            w1 = (i, -i); w2 = (i, i)
+        elif orientation == 'DOWN': # v Shape (Points Down, Wings go Up/Out)
+            w1 = (-i, -i); w2 = (-i, i)
+        elif orientation == 'LEFT': # < Shape (Points Left, Wings go Right/Out)
+            w1 = (-i, i); w2 = (i, i)
+        elif orientation == 'RIGHT': # > Shape (Points Right, Wings go Left/Out)
+            w1 = (-i, -i); w2 = (i, -i)
+            
+        # Draw Wings
+        for dr, dc in [w1, w2]:
+            nr, nc = r + dr, c_idx + dc
+            if 0 <= nr < c.GRID_ROWS and 0 <= nc < c.GRID_COLS:
+                if grid[nr, nc] == c.ID_NOTHING:
+                    grid[nr, nc] = c.ID_BARRIER
+
+# --- 4. SUB-STRATEGIES (Add-ons) ---
+
+def strategy_poi_cordon(grid):
+    """
+    Places a protective layer of barriers around all POI cells.
+    """
+    poi_rows, poi_cols = np.where(grid == c.ID_POI)
+    if len(poi_rows) == 0: return grid, ""
+
+    neighbor_offsets = [
+        (-1, -1), (-1, 0), (-1, 1),
+        (0, -1),           (0, 1),
+        (1, -1),  (1, 0),  (1, 1)
+    ]
+    applied = False
+    for r, col in zip(poi_rows, poi_cols):
+        for dr, dc in neighbor_offsets:
+            nr, nc = r + dr, col + dc
+            if 0 <= nr < c.GRID_ROWS and 0 <= nc < c.GRID_COLS:
+                if grid[nr, nc] == c.ID_NOTHING:
+                    grid[nr, nc] = c.ID_BARRIER
+                    applied = True
+    return grid, " + POI Cordon" if applied else ""
+
+def strategy_poi_hairs(grid):
+    """
+    Creates 'rods' (hairs) of length 3 extending from POI surfaces.
+    Uses structured spacing (every 3rd cell).
+    """
+    poi_rows, poi_cols = np.where(grid == c.ID_POI)
+    if len(poi_rows) == 0: return grid, ""
+    
+    spacing = 3; hair_length = 3; applied_count = 0
+    
+    for r, col in zip(poi_rows, poi_cols):
+        # North
+        if r > 0 and grid[r-1, col] == c.ID_NOTHING and col % spacing == 0:
+            _grow_hair(grid, r, col, -1, 0, hair_length); applied_count += 1
+        # South
+        if r < c.GRID_ROWS - 1 and grid[r+1, col] == c.ID_NOTHING and col % spacing == 0:
+            _grow_hair(grid, r, col, 1, 0, hair_length); applied_count += 1
+        # West
+        if col > 0 and grid[r, col-1] == c.ID_NOTHING and r % spacing == 0:
+            _grow_hair(grid, r, col, 0, -1, hair_length); applied_count += 1
+        # East
+        if col < c.GRID_COLS - 1 and grid[r, col+1] == c.ID_NOTHING and r % spacing == 0:
+            _grow_hair(grid, r, col, 0, 1, hair_length); applied_count += 1
+
+    return grid, " + POI Hairs" if applied_count > 0 else ""
+
+def _grow_hair(grid, r, c_idx, dr, dc, length):
+    for k in range(1, length + 1):
+        nr, nc = r + (dr * k), c_idx + (dc * k)
+        if 0 <= nr < c.GRID_ROWS and 0 <= nc < c.GRID_COLS:
+            if grid[nr, nc] == c.ID_NOTHING:
+                grid[nr, nc] = c.ID_BARRIER
+            else: break
+
+# List of available sub-strategies
+SUB_STRATEGIES = [strategy_poi_cordon, strategy_poi_hairs]
+
+def _apply_sub_strategies(grid, current_desc):
+    """
+    Randomly selects ONE sub-strategy based on chance.
+    """
+    if np.random.random() < c.SUB_STRATEGY_CHANCE:
+        strat_idx = np.random.randint(len(SUB_STRATEGIES))
+        sub_strat = SUB_STRATEGIES[strat_idx]
+        grid, sub_desc = sub_strat(grid)
+        current_desc += sub_desc
+    return grid, current_desc
 
 # --- EXPORT LIST ---
 ALL_STRATEGIES = [
-    strategy_single_row, 
-    strategy_zigzag, 
-    strategy_lane_split,
-    strategy_checkerboard,
-    strategy_funnel_entry
+    strategy_empty,
+    strategy_row_interweaved,
+    strategy_col_interweaved,
+    strategy_islands,
+    strategy_multi_funnels  # UPDATED
 ]

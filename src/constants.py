@@ -24,6 +24,9 @@ COLOR_AGENT_DANGER = (0, 0, 255)     # Red
 COLOR_POI      = (100, 0, 100)       # Dark Purple
 COLOR_BARRIER  = (0, 215, 255)       # Dark Yellow/Gold (B=0, G=215, R=255)
 
+# --- MONTE CARLO SEARCH ---
+SUB_STRATEGY_CHANCE = 1  # 50% chance to apply a sub-strategy
+
 # --- PHYSICS ENGINE CONFIG ---
 DT = 0.016         # Time step (seconds)
 SUB_TICKS = 1     # How many physics steps per 1 render frame
